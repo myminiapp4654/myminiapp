@@ -90,8 +90,14 @@ class ServerClient {
   String get myUid => user.value?.uid ?? '';
   String get myName => user.value?.name ?? 'Mehmon';
 
+  /// Ulanish manzili (ekranda xato bo'lsa ko'rsatish uchun ham).
+  String get serverUrl => _url.toString();
+
   Uri get _url {
     if (_overrideUrl.isNotEmpty) return Uri.parse(_overrideUrl);
+    // Debug rejimda (flutter run / F5) ilova o'z portida ochiladi,
+    // server esa lokal 8080 da ishlaydi
+    if (kDebugMode) return Uri.parse('ws://localhost:8080/ws');
     final base = Uri.base;
     return Uri(
       scheme: base.scheme == 'https' ? 'wss' : 'ws',

@@ -64,13 +64,44 @@ class _StartScreenState extends State<StartScreen> {
                 builder: (context, error, _) {
                   if (error != null) return _buildError(error);
                   if (Telegram.isAvailable || _devStarted) {
-                    return const CircularProgressIndicator();
+                    return _buildConnecting();
                   }
                   return _buildDevForm();
                 },
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  /// Ulanmoqda; ulanib bo'lmasa — sababi va manzil.
+  Widget _buildConnecting() {
+    return ValueListenableBuilder<ConnState>(
+      valueListenable: _server.state,
+      builder: (context, state, _) {
+        if (state != ConnState.offline) {
+          return const CircularProgressIndicator();
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Serverga ulanib bo'lmadi, qayta urinilmoqda..."),
+            const SizedBox(height: 8),
+            Text(_server.serverUrl,
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _server.retryNow,
+              child: const Text('Hozir qayta urinish'),
+            ),
+            if (!Telegram.isAvailable)
+              TextButton(
+                onPressed: () => setState(() => _devStarted = false),
+                child: const Text('Orqaga'),
+              ),
+          ],
         );
       },
     );
