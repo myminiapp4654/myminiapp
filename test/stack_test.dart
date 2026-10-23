@@ -1,6 +1,10 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oyinim/games/stack/stack_bot.dart';
 import 'package:oyinim/games/stack/stack_game.dart';
+import 'package:oyinim/games/stack/stack_race_screen.dart';
 import 'package:oyinim/games/stack/stack_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -99,6 +103,63 @@ void main() {
     await t.tap(find.text("Yana o'ynash"));
     await t.pump(const Duration(milliseconds: 100));
     expect(find.text('0'), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
+  });
+
+  test("kompyuter: kutib bosadi, yiqiladi, qiyini uzoqroq quradi", () {
+    double avg(int level) {
+      var total = 0;
+      for (var seed = 0; seed < 20; seed++) {
+        final g = StackGame();
+        final b = StackBot(level, Random(seed));
+        // Yangi blok chiqqach darhol bosmaydi
+        g.update(1 / 60);
+        expect(b.update(g, 1 / 60), isFalse);
+        var t = 0.0;
+        while (!g.over && t < 900) {
+          g.update(1 / 60);
+          t += 1 / 60;
+          if (b.update(g, 1 / 60)) g.place();
+        }
+        expect(g.over, isTrue, reason: "kompyuter abadiy o'ynamaydi");
+        total += g.score;
+      }
+      return total / 20;
+    }
+
+    final easy = avg(1), mid = avg(2), hard = avg(3);
+    expect(easy, lessThan(mid));
+    expect(mid, lessThan(hard));
+    expect(easy, greaterThan(5));
+  });
+
+  testWidgets("musobaqa: sanoq, yonma-yon minoralar, yiqilgach kuzatish, natijalar", (t) async {
+    t.view.physicalSize = const Size(1080, 2400);
+    t.view.devicePixelRatio = 2.5;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(const MaterialApp(home: StackRaceScreen(bots: 3, level: 1, seed: 1)));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(find.text('3'), findsOneWidget); // sanoq
+    expect(find.text('Usta'), findsOneWidget);
+    expect(find.text('Quruvchi'), findsOneWidget);
+    for (var k = 0; k < 70; k++) {
+      await t.pump(const Duration(milliseconds: 50));
+    }
+    // Ataylab chetga qo'yib yiqilamiz
+    final area = find.byKey(const ValueKey('stack-race'));
+    for (var k = 0; k < 30 && find.textContaining('kuzatyapsiz').evaluate().isEmpty; k++) {
+      await t.tap(area);
+      for (var f = 0; f < 3; f++) {
+        await t.pump(const Duration(milliseconds: 50));
+      }
+    }
+    expect(find.textContaining('kuzatyapsiz'), findsOneWidget);
+    // Kompyuterlar tugatguncha kutamiz
+    for (var k = 0; k < 2000 && find.text("Yana o'ynash").evaluate().isEmpty; k++) {
+      await t.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text("Yana o'ynash"), findsOneWidget);
+    expect(find.text('🥇'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
   });
 }

@@ -7,6 +7,7 @@ import '../games/chess/chess_screen.dart';
 import '../games/maze/maze_screen.dart';
 import '../games/snake/snake_screen.dart';
 import '../games/snakes/snakes_screen.dart';
+import '../games/stack/stack_race_screen.dart';
 import '../games/stack/stack_screen.dart';
 import '../games/walls/walls_screen.dart';
 import '../games/xo/xo_screen.dart';
@@ -132,9 +133,13 @@ final _games = <_GameInfo>[
     await _push(context,
         ChainScreen(players: s.players, rows: s.rows, cols: s.cols, level: s.level));
   }),
-  _GameInfo('Stack', 'Bir bosish — minora', GameArt.stack,
+  _GameInfo('Stack', 'Minora musobaqasi', GameArt.stack,
       const [Color(0xFF3D7BD9), Color(0xFF14254A)],
-      (context) => _push(context, const StackScreen())),
+      (context) async {
+    final s = await showStackSetup(context);
+    if (s == null || !context.mounted) return;
+    await _push(context, s.race ? StackRaceScreen(bots: s.bots, level: s.level) : const StackScreen());
+  }),
   _GameInfo('Escape the Walls', 'Devor buzish', GameArt.walls,
       const [Color(0xFFD35400), Color(0xFF4A1A06)],
       (context) => _push(context, const WallsScreen())),
