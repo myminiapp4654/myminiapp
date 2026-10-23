@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../telegram/telegram.dart';
 import '../../ui/kit.dart';
+import '../../ui/setup.dart';
 import 'ludo_game.dart';
 
 const kLudoColors = [
@@ -20,53 +21,81 @@ const kLudoNames = ['Qizil', 'Yashil', 'Sariq', "Ko'k"];
 Future<({int players, Set<int> ai})?> showLudoSetup(BuildContext context) {
   var players = 2;
   final ai = <int>{2}; // 2 kishida sariq — kompyuter
-  return showDialog(
-    context: context,
-    builder: (ctx) => StatefulBuilder(builder: (ctx, setState) {
+  return showGameSetup(
+    context,
+    title: 'Ludo',
+    colors: const [Color(0xFFFFC233), Color(0xFFF107A3)],
+    onStart: () {
       final colors = LudoGame.colorsFor(players);
-      return AlertDialog(
-        title: const Text('Ludo'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("O'yinchilar"),
-            const SizedBox(height: 8),
-            SegmentedButton<int>(
-              segments: const [
-                ButtonSegment(value: 2, label: Text('2')),
-                ButtonSegment(value: 3, label: Text('3')),
-                ButtonSegment(value: 4, label: Text('4')),
-              ],
-              selected: {players},
-              onSelectionChanged: (s) => setState(() => players = s.first),
-            ),
-            const SizedBox(height: 12),
-            for (final c in colors)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                secondary: CircleAvatar(radius: 10, backgroundColor: kLudoColors[c]),
-                title: Text(kLudoNames[c]),
-                subtitle: Text(ai.contains(c) ? 'Kompyuter' : 'Odam'),
-                value: ai.contains(c),
-                onChanged: (v) => setState(() => v ? ai.add(c) : ai.remove(c)),
-              ),
-          ],
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () {
-              final colors = LudoGame.colorsFor(players);
-              Navigator.pop(ctx, (
-                players: players,
-                ai: ai.where(colors.contains).toSet(),
-              ));
-            },
-            child: const Text('Boshlash'),
+      return (players: players, ai: ai.where(colors.contains).toSet());
+    },
+    builder: (ctx, setState) {
+      final colors = LudoGame.colorsFor(players);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SetupLabel("O'yinchilar soni"),
+          PlayerCountPicker(
+            min: 2,
+            max: 4,
+            value: players,
+            colors: [for (final c in colors) kLudoColors[c]],
+            onChanged: (n) => setState(() => players = n),
+          ),
+          const SetupLabel("Kim o'ynaydi — bosib almashtiring"),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final c in colors)
+                GestureDetector(
+                  key: ValueKey('seat-$c'),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => ai.contains(c) ? ai.remove(c) : ai.add(c));
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    width: 82,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: LinearGradient(colors: [
+                        kLudoColors[c].withValues(alpha: 0.6),
+                        kLudoColors[c].withValues(alpha: 0.2),
+                      ]),
+                      border: Border.all(color: kLudoColors[c], width: 2),
+                    ),
+                    child: Column(
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, a) => RotationTransition(
+                            turns: Tween(begin: 0.5, end: 1.0).animate(a),
+                            child: ScaleTransition(scale: a, child: child),
+                          ),
+                          child: Icon(
+                            ai.contains(c) ? Icons.smart_toy_rounded : Icons.person_rounded,
+                            key: ValueKey(ai.contains(c)),
+                            color: Colors.white,
+                            size: 34,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(kLudoNames[c],
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                        Text(ai.contains(c) ? 'Kompyuter' : 'Odam',
+                            style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       );
-    }),
+    },
   );
 }
 

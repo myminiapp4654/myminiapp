@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../telegram/telegram.dart';
 import 'chain_game.dart';
 import '../../ui/kit.dart';
+import '../../ui/setup.dart';
 
 const kChainColors = [
   Color(0xFFFF5252),
@@ -22,57 +23,46 @@ const kChainNames = [
 ];
 
 /// O'yin sozlamalari: o'yinchilar soni va taxta o'lchami.
-Future<({int players, int rows, int cols})?> showChainSetup(
-    BuildContext context) {
+Future<({int players, int rows, int cols})?> showChainSetup(BuildContext context) {
   var players = 2;
   var big = false;
-  return showDialog(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setState) => AlertDialog(
-        title: const Text('Chain Burst'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("O'yinchilar"),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (var n = 2; n <= 8; n++)
-                  ChoiceChip(
-                    label: Text('$n'),
-                    selected: players == n,
-                    onSelected: (_) => setState(() => players = n),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text('Taxta'),
-            const SizedBox(height: 8),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('6 × 9')),
-                ButtonSegment(value: true, label: Text('8 × 12')),
-              ],
-              selected: {big},
-              onSelectionChanged: (s) => setState(() => big = s.first),
-            ),
-          ],
+  return showGameSetup(
+    context,
+    title: 'Chain Reaction',
+    colors: const [Color(0xFFFF4D8D), Color(0xFF7B2FF7)],
+    onStart: () => (players: players, rows: big ? 12 : 9, cols: big ? 8 : 6),
+    builder: (ctx, setState) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SetupLabel("O'yinchilar soni"),
+        PlayerCountPicker(
+          min: 2,
+          max: 8,
+          value: players,
+          colors: kChainColors,
+          onChanged: (n) => setState(() => players = n),
         ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, (
-              players: players,
-              rows: big ? 12 : 9,
-              cols: big ? 8 : 6,
-            )),
-            child: const Text('Boshlash'),
+        const SizedBox(height: 6),
+        const SetupLabel('Taxta'),
+        ChoiceRow(children: [
+          ChoiceCard(
+            selected: !big,
+            color: const Color(0xFFFF4D8D),
+            icon: const MiniGrid(cols: 6, rows: 9, color: Colors.white),
+            label: '6 × 9',
+            hint: "tez o'yin",
+            onTap: () => setState(() => big = false),
           ),
-        ],
-      ),
+          ChoiceCard(
+            selected: big,
+            color: const Color(0xFFFF4D8D),
+            icon: const MiniGrid(cols: 8, rows: 12, color: Colors.white),
+            label: '8 × 12',
+            hint: "ko'p kishiga",
+            onTap: () => setState(() => big = true),
+          ),
+        ]),
+      ],
     ),
   );
 }
@@ -153,7 +143,7 @@ class _ChainScreenState extends State<ChainScreen>
     final turnColor = kChainColors[g.finished ? g.winner! : g.current];
 
     return GameScaffold(
-      title: 'Chain Burst',
+      title: 'Chain Reaction',
       palette: GamePalette.chain,
       actions: [
         IconButton(

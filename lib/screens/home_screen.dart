@@ -11,6 +11,7 @@ import '../games/xo/xo_screen.dart';
 import '../net/server_client.dart';
 import '../ui/game_art.dart';
 import '../ui/kit.dart';
+import '../ui/setup.dart';
 
 class _GameInfo {
   final String title;
@@ -36,30 +37,40 @@ Future<void> _push(BuildContext context, Widget screen) =>
     ));
 
 Future<void> _openXo(BuildContext context) async {
-  final size = await showDialog<int>(
-    context: context,
-    builder: (ctx) => SimpleDialog(
-      title: const Text('X-O'),
+  var size = 3;
+  const cyan = Color(0xFF4DE8FF);
+  final picked = await showGameSetup<int>(
+    context,
+    title: 'X-O',
+    colors: const [Color(0xFF4DE8FF), Color(0xFF7B5CFF)],
+    onStart: () => size,
+    builder: (ctx, setState) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SimpleDialogOption(
-          onPressed: () => Navigator.pop(ctx, 3),
-          child: const ListTile(
-            title: Text('3 × 3'),
-            subtitle: Text('3 tasi bir qatorda — yutadi'),
+        const SetupLabel("Taxta o'lchami"),
+        ChoiceRow(children: [
+          ChoiceCard(
+            selected: size == 3,
+            color: cyan,
+            icon: const MiniGrid(cols: 3, rows: 3, color: Colors.white),
+            label: '3 × 3',
+            hint: '3 tasi qatorda',
+            onTap: () => setState(() => size = 3),
           ),
-        ),
-        SimpleDialogOption(
-          onPressed: () => Navigator.pop(ctx, 10),
-          child: const ListTile(
-            title: Text('10 × 10'),
-            subtitle: Text('5 tasi bir qatorda — yutadi'),
+          ChoiceCard(
+            selected: size == 10,
+            color: cyan,
+            icon: const MiniGrid(cols: 10, rows: 10, color: Colors.white),
+            label: '10 × 10',
+            hint: '5 tasi qatorda',
+            onTap: () => setState(() => size = 10),
           ),
-        ),
+        ]),
       ],
     ),
   );
-  if (size == null || !context.mounted) return;
-  await _push(context, XoScreen(size: size));
+  if (picked == null || !context.mounted) return;
+  await _push(context, XoScreen(size: picked));
 }
 
 final _games = <_GameInfo>[
@@ -84,14 +95,14 @@ final _games = <_GameInfo>[
       (context) => _push(context, const CheckersScreen())),
   _GameInfo('X-O', '2 kishi', GameArt.xo,
       const [Color(0xFF1D4ED8), Color(0xFF0B1A4A)], _openXo),
-  _GameInfo('Chain Burst', '2–8 kishi', GameArt.chain,
+  _GameInfo('Chain Reaction', '2–8 kishi', GameArt.chain,
       const [Color(0xFFE91E63), Color(0xFF4A0D2E)], (context) async {
     final s = await showChainSetup(context);
     if (s == null || !context.mounted) return;
     await _push(context,
         ChainScreen(players: s.players, rows: s.rows, cols: s.cols));
   }),
-  _GameInfo('Sharlar', 'Boshqotirma', GameArt.orbs,
+  _GameInfo('Chain Burst', 'Bir bosish — zanjir', GameArt.orbs,
       const [Color(0xFF00A88F), Color(0xFF053B3A)],
       (context) => _push(context, const OrbsScreen())),
   _GameInfo('Escape the Walls', 'Devor buzish', GameArt.walls,

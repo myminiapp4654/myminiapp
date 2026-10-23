@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../telegram/telegram.dart';
 import '../../ui/kit.dart';
+import '../../ui/setup.dart';
 import 'chess_game.dart';
 import 'chess_pieces.dart';
 
@@ -14,59 +15,68 @@ Future<({bool vsAi, String humanColor, int level})?> showChessSetup(
   var vsAi = true;
   var color = 'w';
   var level = 2;
-  return showDialog(
-    context: context,
-    builder: (ctx) => StatefulBuilder(builder: (ctx, setState) {
-      return AlertDialog(
-        title: const Text('Shaxmat'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('Kompyuter')),
-                ButtonSegment(value: false, label: Text('2 kishi')),
-              ],
-              selected: {vsAi},
-              onSelectionChanged: (s) => setState(() => vsAi = s.first),
-            ),
-            if (vsAi) ...[
-              const SizedBox(height: 16),
-              const Text('Siz'),
-              const SizedBox(height: 8),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'w', label: Text('Oq')),
-                  ButtonSegment(value: 'b', label: Text('Qora')),
-                ],
-                selected: {color},
-                onSelectionChanged: (s) => setState(() => color = s.first),
-              ),
-              const SizedBox(height: 16),
-              const Text('Daraja'),
-              const SizedBox(height: 8),
-              SegmentedButton<int>(
-                segments: const [
-                  ButtonSegment(value: 1, label: Text('Oson')),
-                  ButtonSegment(value: 2, label: Text("O'rta")),
-                  ButtonSegment(value: 3, label: Text('Qiyin')),
-                ],
-                selected: {level},
-                onSelectionChanged: (s) => setState(() => level = s.first),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(
-                ctx, (vsAi: vsAi, humanColor: color, level: level)),
-            child: const Text('Boshlash'),
+  const gold = Color(0xFFE8C07A);
+  return showGameSetup(
+    context,
+    title: 'Shaxmat',
+    colors: const [Color(0xFFE8C07A), Color(0xFF8E5A2B)],
+    onStart: () => (vsAi: vsAi, humanColor: color, level: level),
+    builder: (ctx, setState) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SetupLabel('Kim bilan'),
+        ChoiceRow(children: [
+          ChoiceCard(
+            selected: vsAi,
+            color: gold,
+            icon: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 36),
+            label: 'Kompyuter',
+            onTap: () => setState(() => vsAi = true),
           ),
-        ],
-      );
-    }),
+          ChoiceCard(
+            selected: !vsAi,
+            color: gold,
+            icon: const Icon(Icons.people_alt_rounded, color: Colors.white, size: 36),
+            label: '2 kishi',
+            hint: 'bitta telefonda',
+            onTap: () => setState(() => vsAi = false),
+          ),
+        ]),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          child: !vsAi
+              ? const SizedBox(width: double.infinity)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 10),
+                    const SetupLabel('Siz qaysi rangda'),
+                    ChoiceRow(children: [
+                      ChoiceCard(
+                        selected: color == 'w',
+                        color: gold,
+                        icon: const ChessPiece(piece: 'K', size: 44),
+                        label: 'Oq',
+                        hint: 'birinchi yurasiz',
+                        onTap: () => setState(() => color = 'w'),
+                      ),
+                      ChoiceCard(
+                        selected: color == 'b',
+                        color: gold,
+                        icon: const ChessPiece(piece: 'k', size: 44),
+                        label: 'Qora',
+                        onTap: () => setState(() => color = 'b'),
+                      ),
+                    ]),
+                    const SizedBox(height: 10),
+                    const SetupLabel('Qiyinlik — smaylikni suring'),
+                    DifficultyRope(value: level, onChanged: (v) => setState(() => level = v)),
+                  ],
+                ),
+        ),
+      ],
+    ),
   );
 }
 

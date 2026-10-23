@@ -7,20 +7,21 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../telegram/telegram.dart';
-import 'orbs_game.dart';
 import '../../ui/kit.dart';
+import 'orbs_game.dart';
 
 const kOrbColors = [
-  Color(0xFFFF5252),
-  Color(0xFF40C4FF),
-  Color(0xFFFFD740),
+  Color(0xFFFF5C8A),
+  Color(0xFF4DD0FF),
+  Color(0xFFFFD54F),
   Color(0xFF69F0AE),
   Color(0xFFB388FF),
+  Color(0xFFFF9E57),
 ];
-const kOrbColorNames = ['qizil', "ko'k", 'sariq', 'yashil', 'binafsha'];
 
-Color orbColor(int c) => c == OrbsGame.bomb ? const Color(0xFF263238) : kOrbColors[c];
+Color orbColor(int c) => c < 0 ? Colors.white : kOrbColors[c % kOrbColors.length];
 
+/// Chain Burst: bir bosishda zanjirli portlash.
 class OrbsScreen extends StatefulWidget {
   const OrbsScreen({super.key});
 
@@ -28,21 +29,20 @@ class OrbsScreen extends StatefulWidget {
   State<OrbsScreen> createState() => _OrbsScreenState();
 }
 
-class _OrbsScreenState extends State<OrbsScreen>
-    with SingleTickerProviderStateMixin {
-  static const _saveKey = 'orbs_progress_v1';
+class _OrbsScreenState extends State<OrbsScreen> with SingleTickerProviderStateMixin {
+  static const _saveKey = 'chainburst_progress_v2';
 
   late final Ticker _ticker;
   Duration _last = Duration.zero;
 
   OrbsGame? _game;
+  OrbsResult _shown = OrbsResult.playing;
+  int _seenCatches = 0;
 
   /// Daraja -> eng yaxshi yulduzlar.
   Map<int, int> _stars = {};
-  OrbsResult _shown = OrbsResult.playing;
-  int _lastBursts = 0;
 
-  int get _unlocked => _stars.isEmpty ? 1 : _stars.keys.reduce(max) + 1;
+  int get _unlocked => min(OrbsGame.levelCount, _stars.isEmpty ? 1 : _stars.keys.reduce(max) + 1);
 
   @override
   void initState() {
@@ -72,16 +72,22 @@ class _OrbsScreenState extends State<OrbsScreen>
   Future<void> _saveStars() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          _saveKey, jsonEncode(_stars.map((k, v) => MapEntry('$k', v))));
+      await prefs.setString(_saveKey, jsonEncode(_stars.map((k, v) => MapEntry('$k', v))));
     } catch (_) {}
   }
 
   void _start(int level) => setState(() {
-        _game = OrbsGame(level);
+        _game = OrbsGame(level.clamp(1, OrbsGame.levelCount));
         _shown = OrbsResult.playing;
-        _lastBursts = 0;
+        _seenCatches = 0;
       });
+
+  int _starsFor(OrbsGame g) {
+    final i = g.info;
+    if (g.caught >= i.total) return 3;
+    if (g.caught >= i.target + (i.total - i.target) ~/ 2) return 2;
+    return 1;
+  }
 
   void _onFrame(Duration elapsed) {
     final g = _game;
@@ -90,19 +96,16 @@ class _OrbsScreenState extends State<OrbsScreen>
     _last = elapsed;
     g.update(dt);
 
-    // Yangi portlashlar — titrash
-    final popped = g.orbs.length - g.aliveCount;
-    if (popped > _lastBursts) {
+    if (g.catches.length > _seenCatches) {
+      _seenCatches = g.catches.length;
       HapticFeedback.lightImpact();
-      _lastBursts = popped;
     }
-
     final r = g.result;
-    if (r != OrbsResult.playing && _shown == OrbsResult.playing && g.settled) {
+    if (r != OrbsResult.playing && _shown == OrbsResult.playing) {
       _shown = r;
       if (r == OrbsResult.won) {
-        final best = _stars[g.level] ?? 0;
-        if (g.stars > best) _stars[g.level] = g.stars;
+        final s = _starsFor(g);
+        if (s > (_stars[g.level] ?? 0)) _stars[g.level] = s;
         _saveStars();
       }
     }
@@ -118,7 +121,6 @@ class _OrbsScreenState extends State<OrbsScreen>
     }
   }
 
-
   void _openLevels() {
     showModalBottomSheet(
       context: context,
@@ -132,11 +134,11 @@ class _OrbsScreenState extends State<OrbsScreen>
             const SizedBox(height: 12),
             GridView.count(
               shrinkWrap: true,
-              crossAxisCount: 5,
+              crossAxisCount: 4,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
               children: [
-                for (var l = 1; l <= max(_unlocked, 10); l++)
+                for (var l = 1; l <= OrbsGame.levelCount; l++)
                   GestureDetector(
                     onTap: l <= _unlocked
                         ? () {
@@ -148,8 +150,7 @@ class _OrbsScreenState extends State<OrbsScreen>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
                         gradient: l <= _unlocked
-                            ? const LinearGradient(
-                                colors: [Color(0xFF00C9A7), Color(0xFF00695C)])
+                            ? const LinearGradient(colors: [Color(0xFFB388FF), Color(0xFF5E35B1)])
                             : null,
                         color: l <= _unlocked ? null : Colors.white10,
                       ),
@@ -159,13 +160,15 @@ class _OrbsScreenState extends State<OrbsScreen>
                           if (l <= _unlocked)
                             Text('$l',
                                 style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 18))
+                                    color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18))
                           else
                             const Icon(Icons.lock_rounded, color: Colors.white38, size: 18),
+                          Text(
+                            '${OrbsGame.levels[l - 1].target}/${OrbsGame.levels[l - 1].total}',
+                            style: const TextStyle(color: Colors.white54, fontSize: 10),
+                          ),
                           Text('★' * (_stars[l] ?? 0),
-                              style: const TextStyle(fontSize: 10, color: Color(0xFFFFD54F))),
+                              style: const TextStyle(fontSize: 11, color: Color(0xFFFFD54F))),
                         ],
                       ),
                     ),
@@ -183,19 +186,15 @@ class _OrbsScreenState extends State<OrbsScreen>
     final g = _game;
     if (g == null) {
       return const Scaffold(
-          backgroundColor: Color(0xFF050D18),
-          body: Center(child: CircularProgressIndicator()));
+          backgroundColor: Color(0xFF07020F), body: Center(child: CircularProgressIndicator()));
     }
-
-    final goalText = g.goal.color == null
-        ? 'Sharlarni portlating'
-        : '${kOrbColorNames[g.goal.color!][0].toUpperCase()}'
-            "${kOrbColorNames[g.goal.color!].substring(1)} sharlarni yo'q qiling";
-    final progress = min(1.0, g.progress / g.goal.target);
+    final info = g.info;
+    final progress = min(1.0, g.caught / info.target);
+    final reached = g.caught >= info.target;
 
     return GameScaffold(
       title: 'Chain Burst: ${g.level}-daraja',
-      palette: GamePalette.orbs,
+      palette: GamePalette.chain,
       actions: [
         IconButton(
             icon: const Icon(Icons.grid_view_rounded),
@@ -213,34 +212,16 @@ class _OrbsScreenState extends State<OrbsScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
                 child: Glass(
-                  tint: const Color(0xFF7CF5C4),
+                  tint: const Color(0xFFB388FF),
                   child: Row(
                     children: [
-                      // Vazifa rangi
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: g.goal.color == null
-                              ? const SweepGradient(colors: kOrbColors)
-                              : RadialGradient(
-                                  center: const Alignment(-0.3, -0.3),
-                                  colors: [
-                                    Colors.white,
-                                    orbColor(g.goal.color!),
-                                  ],
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(goalText,
+                            Text('${info.total} tadan ${info.target} tasini ushlang',
                                 style: const TextStyle(
-                                    color: Colors.white, fontWeight: FontWeight.w700)),
+                                    color: Colors.white, fontWeight: FontWeight.w800)),
                             const SizedBox(height: 6),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(6),
@@ -248,13 +229,16 @@ class _OrbsScreenState extends State<OrbsScreen>
                                 children: [
                                   Container(height: 10, color: Colors.white12),
                                   AnimatedFractionallySizedBox(
-                                    duration: const Duration(milliseconds: 300),
+                                    duration: const Duration(milliseconds: 200),
                                     widthFactor: progress,
                                     child: Container(
                                       height: 10,
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         gradient: LinearGradient(
-                                            colors: [Color(0xFF7CF5C4), Color(0xFF00C9A7)]),
+                                          colors: reached
+                                              ? const [Color(0xFFFFE082), Color(0xFFFFB300)]
+                                              : const [Color(0xFFB388FF), Color(0xFFFF5C8A)],
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -262,35 +246,26 @@ class _OrbsScreenState extends State<OrbsScreen>
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text('${min(g.progress, g.goal.target)}/${g.goal.target}',
-                                style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                            Text('Ochko: ${g.score}',
+                                style: const TextStyle(color: Colors.white60, fontSize: 12)),
                           ],
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // Qolgan yurishlar
-                      Container(
-                        width: 64,
-                        height: 64,
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black26,
+                          borderRadius: BorderRadius.circular(16),
+                          color: reached
+                              ? const Color(0xFFFFB300).withValues(alpha: 0.25)
+                              : Colors.black26,
                           border: Border.all(
-                            color: g.moves <= 1 ? const Color(0xFFFF5252) : const Color(0xFF7CF5C4),
-                            width: 2.5,
-                          ),
+                              color: reached ? const Color(0xFFFFD54F) : Colors.white24),
                         ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text('${g.moves}',
-                                key: const ValueKey('moves'),
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-                            const Text('yurish',
-                                style: TextStyle(color: Colors.white60, fontSize: 10)),
-                          ],
-                        ),
+                        child: Text('${g.caught} / ${info.target}',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
                       ),
                     ],
                   ),
@@ -309,16 +284,46 @@ class _OrbsScreenState extends State<OrbsScreen>
                           onTapDown: (d) => _tapAt(d.localPosition, size),
                           child: Container(
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                  color: const Color(0xFF7CF5C4).withValues(alpha: 0.35)),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(color: Colors.white12),
                               boxShadow: const [
                                 BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 10)),
                               ],
                             ),
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: CustomPaint(size: size, painter: _ArenaPainter(g)),
+                              borderRadius: BorderRadius.circular(22),
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                      child: CustomPaint(painter: _ArenaPainter(g))),
+                                  if (!g.tapped)
+                                    Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 24,
+                                      child: IgnorePointer(
+                                        child: Center(
+                                          child: _Pulse(
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 14, vertical: 8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black45,
+                                                borderRadius: BorderRadius.circular(20),
+                                              ),
+                                              child: const Text(
+                                                'Bir marta bosing — zanjirni boshlang!',
+                                                style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w700),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -337,32 +342,66 @@ class _OrbsScreenState extends State<OrbsScreen>
 
   Widget _buildResult(OrbsGame g) {
     final won = _shown == OrbsResult.won;
+    final last = g.level >= OrbsGame.levelCount;
+    final stars = won ? _starsFor(g) : 0;
     return WinOverlay(
       key: ValueKey('res-${g.level}-$won'),
-      title: won ? 'Bajarildi!' : 'Yurishlar tugadi',
-      subtitle: won
-          ? '${'★' * g.stars}${'☆' * (3 - g.stars)}'
-          : 'Vazifa: ${g.progress}/${g.goal.target}',
+      title: won ? (last ? 'Hammasidan o\'tdingiz!' : 'Bajarildi!') : "Yana urinib ko'ring",
+      subtitle: '${g.caught} ta ushlandi (kerak: ${g.info.target})  •  ${g.score} ochko'
+          '${g.maxGeneration > 1 ? '\nEng uzun zanjir: ${g.maxGeneration}' : ''}',
       confetti: won,
-      color: won ? const Color(0xFF7CF5C4) : const Color(0xFFFF8A80),
+      color: won ? const Color(0xFFFFD54F) : const Color(0xFFFF8A80),
       actions: [
         if (won)
+          Text('★' * stars + '☆' * (3 - stars),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 38, color: Color(0xFFFFD54F), shadows: [
+                Shadow(color: Color(0xFFFFB300), blurRadius: 14),
+              ])),
+        if (won && !last)
           GameButton(
             label: 'Keyingi daraja',
             icon: Icons.arrow_forward_rounded,
-            colors: const [Color(0xFF7CF5C4), Color(0xFF00897B)],
+            colors: const [Color(0xFFB388FF), Color(0xFF5E35B1)],
             onPressed: () => _start(g.level + 1),
           ),
         GameButton(
           label: 'Qaytadan',
           icon: Icons.replay_rounded,
           outlined: won,
-          colors: const [Color(0xFF7CF5C4), Color(0xFF00897B)],
+          colors: const [Color(0xFFB388FF), Color(0xFF5E35B1)],
           onPressed: () => _start(g.level),
         ),
       ],
     );
   }
+}
+
+/// Sekin "nafas oladigan" ko'rsatma.
+class _Pulse extends StatefulWidget {
+  final Widget child;
+  const _Pulse({required this.child});
+
+  @override
+  State<_Pulse> createState() => _PulseState();
+}
+
+class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+        ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: Tween(begin: 0.55, end: 1.0).animate(_c),
+        child: widget.child,
+      );
 }
 
 class _ArenaPainter extends CustomPainter {
@@ -372,102 +411,90 @@ class _ArenaPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width / OrbsGame.width;
-    final r = OrbsGame.radius * s;
-
-    // Fon: qorong'i shisha, mayda nuqtalar
     canvas.drawRect(
       Offset.zero & size,
       Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0E2236), Color(0xFF07121F)],
+        ..shader = const RadialGradient(
+          colors: [Color(0xFF1C0F33), Color(0xFF07020F)],
         ).createShader(Offset.zero & size),
     );
-    final dot = Paint()..color = Colors.white.withValues(alpha: 0.05);
-    for (var y = s / 2; y < size.height; y += s) {
-      for (var x = s / 2; x < size.width; x += s) {
-        canvas.drawCircle(Offset(x, y), 1.2, dot);
-      }
-    }
 
-    // Portlash halqalari va uchqunlar
-    for (final b in game.bursts) {
-      final t = (b.age / 0.45).clamp(0.0, 1.0);
+    // Portlash halqalari
+    for (final b in game.blasts) {
+      final r = OrbsGame.blastRadius * b.scale * s;
+      if (r <= 0.5) continue;
       final c = Offset(b.x * s, b.y * s);
-      final bomb = b.color == OrbsGame.bomb;
-      final col = bomb ? const Color(0xFFFF9100) : orbColor(b.color);
+      final col = orbColor(b.color);
+      final fade = b.age > Blast.grow + Blast.hold ? b.scale : 1.0;
       canvas.drawCircle(
         c,
-        r * (1 + t * (bomb ? 4 : 1.8)),
+        r,
         Paint()
           ..shader = RadialGradient(colors: [
-            Colors.white.withValues(alpha: 0.6 * (1 - t)),
-            col.withValues(alpha: 0.45 * (1 - t)),
-            col.withValues(alpha: 0),
-          ]).createShader(Rect.fromCircle(center: c, radius: r * (1 + t * (bomb ? 4 : 1.8)))),
+            col.withValues(alpha: 0.55 * fade),
+            col.withValues(alpha: 0.3 * fade),
+            col.withValues(alpha: 0.05),
+          ], stops: const [0, 0.7, 1])
+              .createShader(Rect.fromCircle(center: c, radius: r)),
       );
-      for (var k = 0; k < 6; k++) {
-        final a = k * pi / 3 + b.x;
-        final p = c + Offset(cos(a), sin(a)) * r * (0.5 + t * (bomb ? 3.5 : 1.8));
-        canvas.drawCircle(p, r * 0.18 * (1 - t), Paint()..color = col.withValues(alpha: 1 - t));
-      }
+      canvas.drawCircle(
+        c,
+        r,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = col.withValues(alpha: 0.8 * fade),
+      );
     }
 
-    final goal = game.goal.color;
+    // Suzib yurgan sharlar
+    final r = OrbsGame.orbRadius * s;
     for (final o in game.orbs) {
       if (!o.alive) continue;
       final c = Offset(o.x * s, o.y * s);
-      if (o.isBomb) {
-        _bomb(canvas, c, r);
-        continue;
-      }
-      final base = orbColor(o.color);
-      // Nur
-      if (goal == o.color) {
-        canvas.drawCircle(c, r * 1.25, Paint()
-          ..shader = RadialGradient(colors: [base.withValues(alpha: 0.35), base.withValues(alpha: 0)])
-              .createShader(Rect.fromCircle(center: c, radius: r * 1.25)));
-      }
+      final col = orbColor(o.color);
       canvas.drawCircle(
         c,
-        r * 0.95,
+        r * 2.4,
+        Paint()
+          ..shader = RadialGradient(colors: [col.withValues(alpha: 0.35), col.withValues(alpha: 0)])
+              .createShader(Rect.fromCircle(center: c, radius: r * 2.4)),
+      );
+      canvas.drawCircle(
+        c,
+        r,
         Paint()
           ..shader = RadialGradient(
             center: const Alignment(-0.35, -0.4),
-            colors: [
-              Colors.white,
-              Color.lerp(base, Colors.white, 0.35)!,
-              base,
-              Color.lerp(base, Colors.black, 0.5)!,
-            ],
-            stops: const [0, 0.15, 0.55, 1],
+            colors: [Colors.white, col, Color.lerp(col, Colors.black, 0.35)!],
+            stops: const [0, 0.5, 1],
           ).createShader(Rect.fromCircle(center: c, radius: r)),
       );
     }
-  }
 
-  void _bomb(Canvas canvas, Offset c, double r) {
-    canvas.drawCircle(
-      c,
-      r * 0.95,
-      Paint()
-        ..shader = const RadialGradient(
-          center: Alignment(-0.35, -0.4),
-          colors: [Color(0xFF8A939C), Color(0xFF2B3238), Color(0xFF0B0D10)],
-          stops: [0, 0.4, 1],
-        ).createShader(Rect.fromCircle(center: c, radius: r)),
-    );
-    // Pilik va uchqun
-    final fuse = c + Offset(r * 0.45, -r * 0.75);
-    canvas.drawLine(c + Offset(r * 0.2, -r * 0.6), fuse,
-        Paint()
-          ..color = const Color(0xFFBCAAA4)
-          ..strokeWidth = r * 0.14
-          ..strokeCap = StrokeCap.round);
-    canvas.drawCircle(fuse, r * 0.3, Paint()
-      ..shader = const RadialGradient(colors: [Color(0xFFFFF59D), Color(0xFFFF9100), Color(0x00FF9100)])
-          .createShader(Rect.fromCircle(center: fuse, radius: r * 0.3)));
+    // "+200" yozuvlari (har ushlangan shar ustida, ~0.9 s)
+    final now = game.time;
+    final recent = game.catches.length > 40
+        ? game.catches.sublist(game.catches.length - 40)
+        : game.catches;
+    for (final c in recent) {
+      final age = now - c.time;
+      if (age > 0.9) continue;
+      final t = age / 0.9;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '+${c.points}',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 1 - t),
+            fontSize: 12 + min(c.generation, 6) * 1.5,
+            fontWeight: FontWeight.w900,
+            shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(c.x * s - tp.width / 2, c.y * s - 18 - 26 * t));
+    }
   }
 
   @override
