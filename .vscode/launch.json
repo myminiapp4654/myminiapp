@@ -1,5 +1,5 @@
 {
-  // F5 -> "Server + Ilova": lokal server va Chrome'da ilova birga ishga tushadi.
+  // F5 -> "Server + Telefon" yoki "Server + Chrome": lokal server va ilova birga.
   // Kodni saqlasangiz (Ctrl+S) o'zgarish darhol ko'rinadi (hot reload).
   "version": "0.2.0",
   "configurations": [
@@ -15,20 +15,32 @@
       }
     },
     {
+      // USB orqali ulangan telefon. adb reverse telefondagi localhost:8080 ni
+      // kompyuterdagi serverga yo'naltiradi
+      "name": "Ilova (telefon)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "deviceId": "RZ8T60Z9E1A",
+      "preLaunchTask": "adb reverse 8080"
+    },
+    {
       "name": "Ilova (Chrome)",
       "type": "dart",
       "request": "launch",
       "program": "lib/main.dart",
       "deviceId": "chrome",
-      "args": [
-        "--dart-define=SERVER_URL=ws://localhost:8080/ws",
-        "--web-port=5000"
-      ]
+      "args": ["--web-port=5000"]
     }
   ],
   "compounds": [
     {
-      "name": "Server + Ilova",
+      "name": "Server + Telefon",
+      "configurations": ["Server (lokal)", "Ilova (telefon)"],
+      "stopAll": true
+    },
+    {
+      "name": "Server + Chrome",
       "configurations": ["Server (lokal)", "Ilova (Chrome)"],
       "stopAll": true
     }
