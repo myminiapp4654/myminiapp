@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../games/battleship/battleship_screen.dart';
 import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
+import '../games/chess/chess_screen.dart';
 import '../games/walls/walls_screen.dart';
 import '../games/ludo/ludo_screen.dart';
 import '../games/orbs/orbs_screen.dart';
@@ -54,6 +55,25 @@ class HomeScreen extends StatelessWidget {
               subtitle: const Text('Ikki kishi, bitta telefonda'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _openXo(context),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.castle),
+              title: const Text('Shaxmat'),
+              subtitle: const Text('Kompyuterga qarshi yoki 2 kishi'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final s = await showChessSetup(context);
+                if (s == null || !context.mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChessScreen(
+                        vsAi: s.vsAi, humanColor: s.humanColor, level: s.level),
+                  ),
+                );
+              },
             ),
           ),
           Card(
