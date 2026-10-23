@@ -1,107 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../net/server_client.dart';
-import '../services/room_service.dart';
-import '../telegram/telegram.dart';
-import '../widgets/common.dart';
-import 'room_screen.dart';
+import '../games/xo/xo_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+/// Bosh ekran: o'yinlar ro'yxati.
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  // Telegram havolasidagi xona kodi faqat bir marta ishlatiladi
-  static bool _startParamUsed = false;
-
-  final _server = ServerClient.instance;
-  final _roomService = RoomService();
-  final _codeController = TextEditingController();
-  bool _loading = false;
-
-  /// Ilova yopilib qayta ochilganda — avvalgi xona
-  String? _activeRoom;
-
-  @override
-  void initState() {
-    super.initState();
-    _joinFromTelegramLink();
-    _checkActiveRoom();
-  }
-
-  Future<void> _checkActiveRoom() async {
-    try {
-      final code = await _roomService.myRoom();
-      if (mounted) setState(() => _activeRoom = code);
-    } catch (_) {}
-  }
-
-  @override
-  void dispose() {
-    _codeController.dispose();
-    super.dispose();
-  }
-
-  /// t.me/bot?startapp=KOD orqali kelganda xonaga avtomatik kiradi.
-  void _joinFromTelegramLink() {
-    if (_startParamUsed) return;
-    final code = Telegram.startParam?.trim().toUpperCase();
-    if (code == null || code.length != 6) return;
-    _startParamUsed = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _codeController.text = code;
-      _join();
-    });
-  }
-
-  Future<void> _openRoom(String code, bool isHost) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) => RoomScreen(roomCode: code, isHost: isHost)),
+  Future<void> _openXo(BuildContext context) async {
+    final size = await showDialog<int>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('X-O'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 3),
+            child: const ListTile(
+              title: Text('3 × 3'),
+              subtitle: Text('3 tasi bir qatorda — yutadi'),
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 10),
+            child: const ListTile(
+              title: Text('10 × 10'),
+              subtitle: Text('5 tasi bir qatorda — yutadi'),
+            ),
+          ),
+        ],
+      ),
     );
-    _checkActiveRoom();
-  }
-
-  Future<void> _create() async {
-    setState(() => _loading = true);
-    try {
-      final code = await _roomService.createRoom();
-      if (mounted) _openRoom(code, true);
-    } catch (e) {
-      if (mounted) showError(context, e);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _join() async {
-    final code = _codeController.text.trim().toUpperCase();
-    if (code.length != 6) {
-      showError(context, ServerException('6 belgili kod kiriting'));
-      return;
-    }
-    setState(() => _loading = true);
-    try {
-      final joined = await _roomService.joinRoom(code);
-      if (!joined) {
-        if (mounted) {
-          showError(context, ServerException("Xona topilmadi yoki to'la"));
-        }
-        return;
-      }
-      _codeController.clear();
-      if (mounted) _openRoom(code, false);
-    } catch (e) {
-      if (mounted) showError(context, e);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+    if (size == null || !context.mounted) return;
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => XoScreen(size: size)));
   }
 
   @override
@@ -111,56 +41,14 @@ class _HomeScreenState extends State<HomeScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          StreamBuilder<Doc>(
-            stream: _server.watch('me'),
-            builder: (context, snap) {
-              final me = snap.data?.data();
-              final name = (me?['name'] as String?) ?? _server.myName;
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(child: Icon(Icons.person)),
-                title: Text(name),
-              );
-            },
-          ),
-          if (_activeRoom != null)
-            Card(
-              child: ListTile(
-                title: Text('Siz xonadasiz: $_activeRoom'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _openRoom(_activeRoom!, false),
-              ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.grid_3x3),
+              title: const Text('X-O'),
+              subtitle: const Text('Ikki kishi, bitta telefonda'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _openXo(context),
             ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _loading ? null : _create,
-            child: const Text('Xona ochish'),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _codeController,
-                  maxLength: 6,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
-                  ],
-                  decoration: const InputDecoration(
-                    labelText: 'Xona kodi',
-                    counterText: '',
-                    border: OutlineInputBorder(),
-                  ),
-                  onSubmitted: (_) => _join(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: _loading ? null : _join,
-                child: const Text('Kirish'),
-              ),
-            ],
           ),
         ],
       ),

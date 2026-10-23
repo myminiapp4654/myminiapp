@@ -1,101 +1,89 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oyinim/games/xo_view.dart';
-import 'package:oyinim/net/server_client.dart';
-
-Map<String, dynamic> room({
-  required List<String> board,
-  String turn = 'X',
-  String status = 'playing',
-  String? winner,
-  List<int> line = const [],
-  List<String> rematch = const [],
-  bool opponentOnline = true,
-}) =>
-    {
-      'code': 'ABC123',
-      'host': 'tg1',
-      'players': {
-        'tg1': {'name': 'Ali', 'online': true},
-        'tg2': {'name': 'Vali', 'online': opponentOnline},
-      },
-      'game': {
-        'type': 'xo',
-        'size': 3,
-        'winLen': 3,
-        'board': board,
-        'x': 'tg1',
-        'o': 'tg2',
-        'turn': turn,
-        'status': status,
-        'winner': winner,
-        'line': line,
-        'lastMove': null,
-        'score': {'tg1': 2, 'tg2': 1},
-        'draws': 0,
-        'round': 4,
-        'rematch': rematch,
-      },
-    };
-
-Future<void> pump(WidgetTester t, Map<String, dynamic> r) => t.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: XoView(roomCode: 'ABC123', room: r)),
-      ),
-    );
+import 'package:oyinim/games/xo/xo_game.dart';
+import 'package:oyinim/games/xo/xo_screen.dart';
 
 void main() {
-  setUp(() => ServerClient.instance.user.value = const AppUser('tg1', 'Ali'));
+  group('XoGame', () {
+    test("3×3: g'alaba, hisob, keyin yurib bo'lmaydi", () {
+      final g = XoGame(3);
+      expect(g.turn, 'X');
+      for (final i in [0, 3, 1, 4, 2]) {
+        expect(g.play(i), isTrue);
+      }
+      expect(g.winner, 'X');
+      expect(g.line, [0, 1, 2]);
+      expect(g.score, {'X': 1, 'O': 0});
+      expect(g.play(5), isFalse);
+    });
 
-  test("Doc: bo'sh hujjat mavjud emas", () {
-    expect(const Doc(null).exists, isFalse);
-    expect(const Doc({'a': 1}).data(), {'a': 1});
+    test("band katakka yurib bo'lmaydi", () {
+      final g = XoGame(3)..play(4);
+      expect(g.play(4), isFalse);
+      expect(g.turn, 'O');
+    });
+
+    test('durang', () {
+      final g = XoGame(3);
+      // X O X / X O O / O X X
+      for (final i in [0, 1, 2, 4, 3, 5, 7, 6, 8]) {
+        g.play(i);
+      }
+      expect(g.winner, 'draw');
+      expect(g.draws, 1);
+    });
+
+    test("ikkala diagonal va ustun", () {
+      expect(XoGame.winningLine(['X', '', '', '', 'X', '', '', '', 'X'], 3, 3, 4),
+          [0, 4, 8]);
+      expect(XoGame.winningLine(['', '', 'O', '', 'O', '', 'O', '', ''], 3, 3, 2),
+          [2, 4, 6]);
+      expect(XoGame.winningLine(['', 'X', '', '', 'X', '', '', 'X', ''], 3, 3, 7),
+          [1, 4, 7]);
+    });
+
+    test("10×10: 5 tasi yutadi, qator chetidan o'tib ketmaydi", () {
+      final b = List.filled(100, '');
+      for (final i in [7, 8, 9, 10, 11]) {
+        b[i] = 'X';
+      }
+      expect(XoGame.winningLine(b, 10, 5, 9), isNull);
+      final g = XoGame(10);
+      for (var k = 0; k < 4; k++) {
+        g.play(k);
+        g.play(90 + k);
+      }
+      g.play(4);
+      expect(g.winner, 'X');
+      expect(g.line, [0, 1, 2, 3, 4]);
+    });
+
+    test('yangi raundda birinchi navbat almashadi, hisob saqlanadi', () {
+      final g = XoGame(3);
+      for (final i in [0, 3, 1, 4, 2]) {
+        g.play(i);
+      }
+      g.newRound();
+      expect(g.turn, 'O');
+      expect(g.round, 2);
+      expect(g.board.every((c) => c.isEmpty), isTrue);
+      expect(g.score['X'], 1);
+    });
   });
 
-  testWidgets('X-O: navbat, hisob va belgilar', (t) async {
-    await pump(t, room(board: ['X', '', '', '', 'O', '', '', '', '']));
-    expect(find.text('Sizning navbatingiz (X)'), findsOneWidget);
-    expect(find.text('2 : 1'), findsOneWidget);
-    expect(find.text('X'), findsOneWidget);
-    expect(find.text('O'), findsOneWidget);
-    expect(find.text("O'yinni tugatish"), findsOneWidget);
-  });
+  testWidgets("X-O ekrani: bosib o'ynash va g'alaba", (t) async {
+    await t.pumpWidget(const MaterialApp(home: XoScreen(size: 3)));
+    expect(find.text('X navbati'), findsOneWidget);
 
-  testWidgets('X-O: raqib navbati va aloqada emas', (t) async {
-    await pump(
-        t,
-        room(
-            board: List.filled(9, ''),
-            turn: 'O',
-            opponentOnline: false));
-    expect(find.text('Vali navbati'), findsOneWidget);
-    expect(find.text('Vali aloqada emas'), findsOneWidget);
-  });
+    for (final i in [0, 3, 1, 4, 2]) {
+      await t.tap(find.byKey(ValueKey('cell-$i')));
+      await t.pump();
+    }
+    expect(find.text('X yutdi!'), findsOneWidget);
+    expect(find.text('X  1 : 0  O'), findsOneWidget);
 
-  testWidgets("X-O: g'alaba va qayta o'yin taklifi", (t) async {
-    await pump(
-        t,
-        room(
-          board: ['X', 'X', 'X', 'O', 'O', '', '', '', ''],
-          status: 'finished',
-          winner: 'X',
-          line: [0, 1, 2],
-          rematch: ['tg2'],
-        ));
-    expect(find.text('Siz yutdingiz!'), findsOneWidget);
-    expect(find.text("Vali yana o'ynamoqchi"), findsOneWidget);
-    expect(find.text("Yana o'ynash"), findsOneWidget);
-    expect(find.text('Xonaga qaytish'), findsOneWidget);
-  });
-
-  testWidgets('X-O: durang', (t) async {
-    await pump(
-        t,
-        room(
-          board: ['X', 'O', 'X', 'X', 'O', 'O', 'O', 'X', 'X'],
-          status: 'finished',
-          winner: 'draw',
-        ));
-    expect(find.text('Durang'), findsOneWidget);
+    await t.tap(find.text("Yana o'ynash"));
+    await t.pump();
+    expect(find.text('O navbati'), findsOneWidget);
   });
 }
