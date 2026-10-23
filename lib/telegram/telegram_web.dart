@@ -48,6 +48,12 @@ class Telegram {
     );
   }
 
+  /// Server tekshiradigan imzolangan ma'lumot (Telegram ichida bo'lmasa null).
+  static String? get initData {
+    if (!isAvailable) return null;
+    return (_webApp!['initData'] as JSString).toDart;
+  }
+
   /// t.me/bot/app?startapp=XXXX havolasidagi XXXX qismi.
   static String? get startParam {
     if (!isAvailable) return null;

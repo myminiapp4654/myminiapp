@@ -1,6 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
+
+import '../net/server_client.dart';
+
+/// Server bilan aloqa uzilsa yuqorida qizil banner chiqaradi.
 
 class ConnectivityWrapper extends StatefulWidget {
   final Widget child;
@@ -12,8 +14,8 @@ class ConnectivityWrapper extends StatefulWidget {
 
 class _ConnectivityWrapperState extends State<ConnectivityWrapper>
     with SingleTickerProviderStateMixin {
+  final _server = ServerClient.instance;
   bool _isOffline = false;
-  late StreamSubscription<List<ConnectivityResult>> _sub;
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
 
@@ -29,15 +31,13 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOut));
 
-    Connectivity().checkConnectivity().then(_handleResult);
-    _sub = Connectivity()
-        .onConnectivityChanged
-        .listen((results) => _handleResult(results));
+    _server.state.addListener(_onState);
   }
 
-  void _handleResult(List<ConnectivityResult> results) {
-    final offline = results.isEmpty ||
-        results.every((r) => r == ConnectivityResult.none);
+  void _onState() {
+    // Birinchi ulanishda emas, faqat kirgandan keyin uzilsa ko'rsatamiz
+    final offline = _server.user.value != null &&
+        _server.state.value != ConnState.online;
     if (offline == _isOffline) return;
     setState(() => _isOffline = offline);
     if (offline) {
@@ -49,7 +49,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper>
 
   @override
   void dispose() {
-    _sub.cancel();
+    _server.state.removeListener(_onState);
     _slideController.dispose();
     super.dispose();
   }
@@ -62,11 +62,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper>
         SlideTransition(
           position: _slideAnimation,
           child: _isOffline
-              ? _NoInternetBanner(onRetry: () {
-                  Connectivity()
-                      .checkConnectivity()
-                      .then(_handleResult);
-                })
+              ? _NoInternetBanner(onRetry: _server.retryNow)
               : const SizedBox.shrink(),
         ),
       ],
@@ -105,7 +101,7 @@ class _NoInternetBanner extends StatelessWidget {
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
-                        'Internet yo\'q — tarmoqni tekshiring',
+                        "Server bilan aloqa yo'q — qayta ulanmoqda...",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 13,

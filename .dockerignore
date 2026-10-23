@@ -1,0 +1,17 @@
+.git
+.dart_tool
+build
+**/.dart_tool
+**/build
+android
+ios
+linux
+macos
+windows
+.idea
+.vscode
+.claude
+*.iml
+server/data
+firebase.json
+.firebaserc

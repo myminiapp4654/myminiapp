@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../net/server_client.dart';
 import '../services/game_service.dart';
 import '../services/audio_service.dart';
 import '../theme/pixel_ui.dart';
@@ -22,9 +22,6 @@ class TicTacToeScreen extends StatefulWidget {
 class _TicTacToeScreenState extends State<TicTacToeScreen>
     with TickerProviderStateMixin {
   final GameService _gameService = GameService();
-  final _msgController = TextEditingController();
-  final _scrollController = ScrollController();
-  bool _chatOpen = false;
   late AnimationController _scoreAnimX;
   late AnimationController _scoreAnimO;
   int _prevScoreX = 0;
@@ -42,8 +39,6 @@ class _TicTacToeScreenState extends State<TicTacToeScreen>
 
   @override
   void dispose() {
-    _msgController.dispose();
-    _scrollController.dispose();
     _scoreAnimX.dispose();
     _scoreAnimO.dispose();
     super.dispose();
@@ -51,26 +46,6 @@ class _TicTacToeScreenState extends State<TicTacToeScreen>
 
   Future<void> _makeMove(int index) async {
     await _gameService.makeMove(widget.roomCode, index);
-  }
-
-  Future<void> _sendMessage() async {
-    final text = _msgController.text.trim();
-    if (text.isEmpty) return;
-    _msgController.clear();
-    await _gameService.sendMessage(widget.roomCode, text);
-    _scrollToBottom();
-  }
-
-  void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
   }
 
   void _leaveGame(Map<String, dynamic> data) async {
@@ -82,7 +57,7 @@ class _TicTacToeScreenState extends State<TicTacToeScreen>
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<Doc>(
       stream: _gameService.gameStream(widget.roomCode),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return pixelLoading();
@@ -175,25 +150,6 @@ class _TicTacToeScreenState extends State<TicTacToeScreen>
               preferredSize: const Size.fromHeight(2),
               child: Container(height: 2, color: kAccent.withValues(alpha: 0.4)),
             ),
-            actions: [
-              StreamBuilder<QuerySnapshot>(
-                stream: _gameService.messagesStream(widget.roomCode),
-                builder: (context, msgSnap) {
-                  return IconButton(
-                    icon: Badge(
-                      isLabelVisible: !_chatOpen &&
-                          (msgSnap.data?.docs.isNotEmpty ?? false),
-                      backgroundColor: kDanger,
-                      child: Icon(
-                        Icons.chat_bubble_outline,
-                        color: _chatOpen ? kAccent : kDim,
-                      ),
-                    ),
-                    onPressed: () => setState(() => _chatOpen = !_chatOpen),
-                  );
-                },
-              ),
-            ],
           ),
           body: Column(
             children: [
@@ -234,7 +190,6 @@ class _TicTacToeScreenState extends State<TicTacToeScreen>
                   ),
                 ),
               ),
-              if (_chatOpen) _buildChatPanel(),
             ],
           ),
         );
@@ -547,148 +502,6 @@ class _TicTacToeScreenState extends State<TicTacToeScreen>
         pixelText('$score', color, 28),
         pixelText(name.toUpperCase(), kDim, 9),
       ],
-    );
-  }
-
-  Widget _buildChatPanel() {
-    return Container(
-      height: 260,
-      decoration: const BoxDecoration(
-        color: kPanel,
-        border: Border(top: BorderSide(color: kAccent, width: 2)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            height: 2,
-            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 40),
-            color: kBorder,
-          ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _gameService.messagesStream(widget.roomCode),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: pixelText('HALI XABAR YO\'Q', kDim, 11),
-                  );
-                }
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => _scrollToBottom());
-                final docs = snapshot.data!.docs;
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  itemCount: docs.length,
-                  itemBuilder: (context, i) {
-                    final msg = docs[i].data() as Map<String, dynamic>;
-                    final isMe = msg['uid'] == _gameService.myUid;
-                    return _buildMessage(msg, isMe);
-                  },
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(
-              left: 10,
-              right: 10,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 8,
-              top: 6,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _msgController,
-                    style: const TextStyle(
-                        color: kWhite,
-                        fontFamily: 'monospace',
-                        fontSize: 13),
-                    decoration: pixelInputDecoration('XABAR YOZING...'),
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _sendMessage,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: kAccent,
-                      border: Border.all(color: kAccent, width: 2),
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: const Center(
-                        child: Icon(Icons.send, color: kBg, size: 18)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessage(Map<String, dynamic> msg, bool isMe) {
-    final color = isMe ? kAccent : kWarn;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: [
-          if (!isMe) ...[
-            Container(
-              width: 22,
-              height: 22,
-              color: kWarn.withValues(alpha: 0.2),
-              child: Center(
-                child: pixelText(
-                  (msg['name'] as String).isNotEmpty
-                      ? (msg['name'] as String)[0].toUpperCase()
-                      : '?',
-                  kWarn, 10,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
-                borderRadius: BorderRadius.zero,
-              ),
-              child: Text(
-                msg['text'] ?? '',
-                style: const TextStyle(
-                    color: kWhite, fontSize: 13, fontFamily: 'monospace'),
-              ),
-            ),
-          ),
-          if (isMe) ...[
-            const SizedBox(width: 6),
-            Container(
-              width: 22,
-              height: 22,
-              color: kAccent.withValues(alpha: 0.2),
-              child: Center(
-                child: pixelText(
-                  _gameService.myName.isNotEmpty
-                      ? _gameService.myName[0].toUpperCase()
-                      : '?',
-                  kAccent, 10,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }

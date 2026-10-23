@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../net/server_client.dart';
 import '../services/checkers_service.dart';
 import '../services/audio_service.dart';
 import '../theme/pixel_ui.dart';
@@ -21,19 +21,10 @@ class CheckersScreen extends StatefulWidget {
 
 class _CheckersScreenState extends State<CheckersScreen> {
   final _service = CheckersService();
-  final _msgController = TextEditingController();
-  final _scrollController = ScrollController();
 
   int? _selectedCell;
   List<Map<String, int>> _validMoves = [];
   String _prevStatus = '';
-
-  @override
-  void dispose() {
-    _msgController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   void _onCellTap(int index, List<String> board, String myColor,
       bool isMyTurn, int chainJump) {
@@ -44,7 +35,7 @@ class _CheckersScreenState extends State<CheckersScreen> {
       orElse: () => {},
     );
     if (move.isNotEmpty && _selectedCell != null) {
-      _service.makeMove(widget.roomCode, _selectedCell!, move);
+      _service.makeMove(widget.roomCode, _selectedCell!, move).catchError((_) {});
       AudioService.instance.playSfx('move');
       setState(() {
         _selectedCell = null;
@@ -70,29 +61,9 @@ class _CheckersScreenState extends State<CheckersScreen> {
     }
   }
 
-  Future<void> _sendMessage() async {
-    final text = _msgController.text.trim();
-    if (text.isEmpty) return;
-    _msgController.clear();
-    await _service.sendMessage(widget.roomCode, text);
-    _scrollToBottom();
-  }
-
-  void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 150), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<Doc>(
       stream: _service.gameStream(widget.roomCode),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return pixelLoading();
@@ -145,7 +116,11 @@ class _CheckersScreenState extends State<CheckersScreen> {
           if (!mounted) return;
           if (chainJump >= 0 && isMyTurn) {
             final moves = _service.validMoves(board, chainJump, chainJump);
-            if (_selectedCell != chainJump || _validMoves != moves) {
+            final same = _selectedCell == chainJump &&
+                _validMoves.length == moves.length &&
+                List.generate(moves.length, (i) => i).every(
+                    (i) => _validMoves[i]['to'] == moves[i]['to']);
+            if (!same) {
               setState(() {
                 _selectedCell = chainJump;
                 _validMoves = moves;
@@ -268,7 +243,6 @@ class _CheckersScreenState extends State<CheckersScreen> {
                     ),
                   ),
 
-                _buildChat(),
               ],
             ),
           ),
@@ -396,110 +370,6 @@ class _CheckersScreenState extends State<CheckersScreen> {
           pixelText(
             isMe ? 'SEN' : name.split(' ').first.toUpperCase(),
             kDim, 9,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChat() {
-    return Container(
-      height: 180,
-      decoration: const BoxDecoration(
-        color: kPanel,
-        border: Border(top: BorderSide(color: kBorder, width: 1)),
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _service.messagesStream(widget.roomCode),
-              builder: (context, snap) {
-                if (!snap.hasData || snap.data!.docs.isEmpty) {
-                  return Center(
-                    child: pixelText('HALI XABAR YO\'Q', kDim, 10),
-                  );
-                }
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => _scrollToBottom());
-                final docs = snap.data!.docs;
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  itemCount: docs.length,
-                  itemBuilder: (_, i) {
-                    final msg = docs[i].data() as Map<String, dynamic>;
-                    final isMe = msg['uid'] == _service.myUid;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        mainAxisAlignment: isMe
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isMe
-                                  ? kAccent.withValues(alpha: 0.12)
-                                  : kWarn.withValues(alpha: 0.1),
-                              border: Border.all(
-                                  color: isMe
-                                      ? kAccent.withValues(alpha: 0.4)
-                                      : kWarn.withValues(alpha: 0.3),
-                                  width: 1),
-                              borderRadius: BorderRadius.zero,
-                            ),
-                            child: Text(
-                              msg['text'] ?? '',
-                              style: const TextStyle(
-                                  color: kWhite,
-                                  fontSize: 12,
-                                  fontFamily: 'monospace'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(
-              left: 8, right: 8,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 6,
-              top: 4,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _msgController,
-                    style: const TextStyle(
-                        color: kWhite, fontFamily: 'monospace', fontSize: 12),
-                    decoration: pixelInputDecoration('XABAR...'),
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: _sendMessage,
-                  child: Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                      color: kAccent,
-                      border: Border.all(color: kAccent, width: 2),
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: const Center(
-                        child: Icon(Icons.send, color: kBg, size: 16)),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

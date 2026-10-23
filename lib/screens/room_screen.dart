@@ -1,16 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../net/server_client.dart';
 import '../services/room_service.dart';
-import '../services/game_service.dart';
-import '../services/checkers_service.dart';
-import '../services/quiz_service.dart';
-import '../services/ha_yoq_service.dart';
-import '../services/word_puzzle_service.dart';
-import '../services/scrambled_word_service.dart';
 import '../theme/pixel_ui.dart';
 import '../telegram/telegram.dart';
-import '../telegram/telegram_config.dart';
 import 'tictactoe_screen.dart';
 import 'checkers_screen.dart';
 import 'quiz_screen.dart';
@@ -30,12 +23,6 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> {
   final _roomService = RoomService();
-  final _gameService = GameService();
-  final _checkersService = CheckersService();
-  final _quizService = QuizService();
-  final _haYoqService = HaYoqService();
-  final _wordPuzzleService = WordPuzzleService();
-  final _scrambledWordService = ScrambledWordService();
 
   bool _navigating = false;
   bool _creating = false;
@@ -43,7 +30,7 @@ class _RoomScreenState extends State<RoomScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<Doc>(
       stream: _roomService.roomStream(widget.roomCode),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return pixelLoading();
@@ -83,7 +70,9 @@ class _RoomScreenState extends State<RoomScreen> {
               icon: const Icon(Icons.arrow_back, color: kAccent),
               onPressed: () async {
                 final nav = Navigator.of(context);
-                await _roomService.leaveRoom(widget.roomCode);
+                try {
+                  await _roomService.leaveRoom(widget.roomCode);
+                } catch (_) {}
                 nav.pop();
               },
             ),
@@ -481,67 +470,37 @@ class _RoomScreenState extends State<RoomScreen> {
 
     setState(() => _creating = true);
     try {
-      String gameCode;
-      switch (game) {
-        case 'tictactoe':
-          gameCode = await _gameService.createRoom(gridSize: gridSize);
-          break;
-        case 'checkers':
-          gameCode = await _checkersService.createRoom();
-          break;
-        case 'quiz':
-          gameCode = await _quizService.createRoom(10);
-          break;
-        case 'hayoq':
-          gameCode = await _haYoqService.createRoom(5);
-          break;
-        case 'wordpuzzle':
-          final level = await _wordPuzzleService.getUserLevel();
-          gameCode = await _wordPuzzleService.createRoom(level: level);
-          break;
-        case 'scramble':
-          gameCode = await _scrambledWordService.createRoom();
-          break;
-        default:
-          return;
-      }
-      await _roomService.proposeGame(widget.roomCode, game, gameCode);
+      await _roomService.proposeGame(
+        widget.roomCode,
+        game,
+        options: game == 'tictactoe' ? {'gridSize': gridSize} : null,
+      );
+    } on ServerException catch (e) {
+      _showError(e.message);
     } finally {
       if (mounted) setState(() => _creating = false);
     }
   }
 
   Future<void> _acceptInvite(Map invite) async {
-    final game = invite['game'] as String;
-    final gameCode = invite['gameCode'] as String;
-    switch (game) {
-      case 'tictactoe':
-        await _gameService.joinRoom(gameCode);
-        break;
-      case 'checkers':
-        await _checkersService.joinRoom(gameCode);
-        break;
-      case 'quiz':
-        await _quizService.joinRoom(gameCode);
-        break;
-      case 'hayoq':
-        await _haYoqService.joinRoom(gameCode);
-        break;
-      case 'wordpuzzle':
-        await _wordPuzzleService.joinRoom(gameCode);
-        break;
-      case 'scramble':
-        await _scrambledWordService.joinRoom(gameCode);
-        break;
+    try {
+      await _roomService.acceptInvite(widget.roomCode);
+    } on ServerException catch (e) {
+      _showError(e.message);
     }
-    await _roomService.acceptInvite(widget.roomCode);
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Telegram'da do'st tanlash oynasini ochadi; do'st havolani bossa
   /// to'g'ridan-to'g'ri shu xonaga tushadi.
   void _inviteViaTelegram() {
     Telegram.haptic();
-    final link = telegramRoomLink(widget.roomCode);
+    final link = ServerClient.instance.roomInviteLink(widget.roomCode);
     const text = "Keling, Oyinim'da birga o'ynaymiz! 🎮";
     Telegram.openLink('https://t.me/share/url'
         '?url=${Uri.encodeComponent(link)}'
@@ -584,7 +543,9 @@ class _RoomScreenState extends State<RoomScreen> {
 
     if (mounted) {
       _navigating = false;
-      if (amIHost) await _roomService.resetAfterGame(widget.roomCode);
+      if (amIHost) {
+        await _roomService.resetAfterGame(widget.roomCode).catchError((_) {});
+      }
     }
   }
 }

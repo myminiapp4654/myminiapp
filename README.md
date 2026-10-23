@@ -1,33 +1,44 @@
-# Oyinim
+# Oyinim — Telegram Mini App
 
-Do'stlar bilan onlayn o'ynash uchun Flutter + Firebase ilovasi: krestik-nolik, shashka, viktorina, Ha/Yo'q, so'z topish, so'z aralash, guruh va shaxsiy chatlar.
+Telegram ichida do'stlar bilan o'ynash uchun o'yinlar: X-O, shashka, viktorina, Ha/Yo'q, so'z topish, harflar.
 
-Ilova ikki ko'rinishda ishlaydi, ikkalasi bitta Firebase bazasidan foydalanadi:
-- **Android ilova**
-- **Telegram Mini App** (Flutter web)
+- **Ilova:** Flutter web, [lib/](lib/)
+- **Server:** Dart + WebSocket, [server/](server/). O'yin qoidalarini server tekshiradi, Telegram foydalanuvchisini bot tokeni orqali tasdiqlaydi.
+- **Umumiy qoidalar va savollar:** [packages/oyinim_core/](packages/oyinim_core/). Bu paketni ilova ham, server ham ishlatadi.
 
-## Ishga tushirish
+Firebase ishlatilmaydi.
+
+## Render'ga joylash (bir marta)
+
+1. @BotFather'da `/newbot` bilan bot yarating va **token**ni oling.
+2. [render.com](https://render.com) → **New → Blueprint** → shu GitHub repo'ni tanlang. Render `render.yaml`ni o'qiydi.
+3. So'ralganda kiriting:
+   - `BOT_TOKEN`: BotFather bergan token
+   - `APP_SHORT_NAME`: hozircha bo'sh qoldiring
+4. Deploy tugagach, sizga `https://oyinim-xxxx.onrender.com` manzili beriladi.
+5. @BotFather'da:
+   - `/newapp`: botni tanlang, URL sifatida Render manzilini bering, qisqa nom kiriting (masalan `play`).
+   - Shu qisqa nomni Render → Environment → `APP_SHORT_NAME` ga yozing.
+   - Ixtiyoriy: `/mybots` → Bot Settings → Menu Button → Render manzili.
+
+Shundan keyin `telegram-mini-app` branch'iga har bir `git push` qilinganda Render o'zi qayta deploy qiladi.
+
+> Render'ning bepul tarifida server 15 daqiqa ishlatilmasa "uxlaydi", keyingi ochilish ~1 daqiqa kutadi. Yulduzlar va darajalar server qayta ishga tushganda yo'qolishi mumkin (bepul tarifda doimiy disk yo'q).
+
+## Lokal ishga tushirish
 
 ```bash
-flutter pub get
-flutter run                 # Android
-flutter run -d chrome       # Veb (brauzerda)
+flutter build web
+cd server
+DEV_LOGIN=true WEB_DIR=../build/web dart run bin/server.dart
+# brauzerda: http://localhost:8080  (test rejimi: ism bilan kirish)
 ```
 
-## Telegram Mini App
+Ikki o'yinchini sinash uchun ikkita brauzer oynasini oching (biri inkognito rejimda).
 
-1. **Firebase veb sozlamasi.** Firebase Console → Project settings → Your apps → Web app qo'shing. Bergan `apiKey` va `appId` ni [lib/firebase_options.dart](lib/firebase_options.dart) dagi `web` bo'limiga yozing.
-2. **Authorized domains.** Firebase Console → Authentication → Settings → Authorized domains bo'limida `online-game-9f0e5.web.app` borligini tekshiring. Anonymous kirish yoqilgan bo'lishi kerak.
-3. **Build va joylash:**
-   ```bash
-   flutter build web --release
-   firebase deploy --only hosting
-   ```
-   Manzil: `https://online-game-9f0e5.web.app`
-4. **Bot.** @BotFather'da:
-   - `/newbot`: bot yarating.
-   - `/newapp`: botni tanlang, URL sifatida hosting manzilini bering, qisqa nom (masalan `play`) kiriting.
-   - Bot username va qisqa nomni [lib/telegram/telegram_config.dart](lib/telegram/telegram_config.dart) ga yozing.
-5. **Do'stni chaqirish havolasi:** `https://t.me/<bot>/<app>?startapp=XONAKODI`. Do'st havolani bossa, to'g'ridan-to'g'ri xonaga kiradi.
+## Testlar
 
-Telegram ichida login ekrani chiqmaydi: foydalanuvchi Telegram ismi bilan avtomatik kiritiladi.
+```bash
+flutter test            # qoidalar va ma'lumotlar
+cd server && dart test  # server: Telegram imzosi, o'yinlar, WebSocket orqali to'liq o'yin
+```

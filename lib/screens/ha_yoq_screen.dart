@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../net/server_client.dart';
 import '../services/ha_yoq_service.dart';
 import '../services/audio_service.dart';
 import '../theme/pixel_ui.dart';
@@ -28,10 +28,16 @@ class _HaYoqScreenState extends State<HaYoqScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<Doc>(
       stream: _service.gameStream(widget.roomCode),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return pixelLoading();
+        if (!snapshot.data!.exists) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) Navigator.pop(context);
+          });
+          return pixelLoading();
+        }
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final status = data['status'] as String;

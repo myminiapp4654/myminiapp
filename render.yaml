@@ -1,0 +1,21 @@
+# Render Blueprint: GitHub'ga push bo'lganda Render o'zi build qilib deploy qiladi.
+# Render Dashboard -> New -> Blueprint -> shu repo'ni tanlang.
+services:
+  - type: web
+    name: oyinim
+    runtime: docker
+    plan: free
+    branch: telegram-mini-app
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # @BotFather bergan token — Render so'raydi, kodga yozilmaydi
+      - key: BOT_TOKEN
+        sync: false
+      # /newapp da bergan qisqa nom (masalan: play). Bo'sh qolsa main Mini App havolasi ishlatiladi
+      - key: APP_SHORT_NAME
+        sync: false
+      # true qilsangiz brauzerda Telegram'siz test qilish mumkin. Ishga chiqarganda false
+      - key: DEV_LOGIN
+        value: "false"

@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oyinim/data/quiz_questions.dart';
-import 'package:oyinim/data/word_puzzle_data.dart';
+import 'package:oyinim_core/oyinim_core.dart';
 
 void main() {
   test("So'z topish: har bir jumboqda 3 ta so'z, faqat katta harflar", () {
@@ -23,5 +22,21 @@ void main() {
       expect(correct >= 0 && correct < options.length, isTrue,
           reason: q['q'] as String);
     }
+  });
+
+  test("Harflar o'yini: so'zlar faqat katta harflardan", () {
+    for (final w in kScrambleWords) {
+      expect(RegExp(r'^[A-Z]+$').hasMatch(w['word']!), isTrue, reason: w['word']);
+    }
+  });
+
+  test("Shashka: boshida oq 7 ta yura oladi, urish yo'q", () {
+    final board = CheckersRules.initialBoard();
+    var moves = 0;
+    for (var i = 0; i < 64; i++) {
+      if (board[i] == 'w') moves += CheckersRules.validMoves(board, i, -1).length;
+    }
+    expect(moves, 7);
+    expect(CheckersRules.anyJump(board, 'w'), isFalse);
   });
 }

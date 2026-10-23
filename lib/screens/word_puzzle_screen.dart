@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:oyinim_core/oyinim_core.dart';
+import '../net/server_client.dart';
 import '../services/word_puzzle_service.dart';
 import '../services/stars_service.dart';
 import '../services/audio_service.dart';
@@ -80,16 +81,19 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen>
     if (_revealingWithStar) return;
     setState(() => _revealingWithStar = true);
     try {
-      final spent = await _starsService.spendStar();
+      final spent = await _service.revealWithStar(widget.roomCode);
       if (!spent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Yulduzlar yetarli emas!'),
           backgroundColor: _danger,
           duration: Duration(seconds: 2),
         ));
-        return;
       }
-      await _service.revealWithStar(widget.roomCode);
+    } on ServerException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
     } finally {
       if (mounted) setState(() => _revealingWithStar = false);
     }
@@ -97,7 +101,7 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen>
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<Doc>(
       stream: _service.gameStream(widget.roomCode),
       builder: (ctx, snap) {
         if (!snap.hasData) return _loadingScaffold();
@@ -549,7 +553,7 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen>
                 );
               }),
               const SizedBox(height: 20),
-              if (isWin && widget.isHost && level + 1 < 90)
+              if (isWin && widget.isHost && level + 1 < kWordPuzzles.length)
                 _pixelButton(
                   label: 'KEYINGI DARAJA (${level + 2}) ►',
                   color: _accent,

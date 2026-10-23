@@ -24,6 +24,7 @@ class Telegram {
   static bool get isAvailable => false;
   static TelegramUser? get user => null;
   static String? get startParam => null;
+  static String? get initData => null;
 
   static void init() {}
   static void haptic() {}

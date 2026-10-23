@@ -53,3 +53,4 @@ android/key.properties
 .firebase/
 android/build/
 .claude/settings.local.json
+server/data/

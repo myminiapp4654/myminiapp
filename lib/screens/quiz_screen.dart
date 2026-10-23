@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../net/server_client.dart';
 import '../services/quiz_service.dart';
 import '../services/audio_service.dart';
 import '../theme/pixel_ui.dart';
@@ -54,8 +54,7 @@ class _QuizScreenState extends State<QuizScreen> {
         if (widget.isHost) {
           Future.delayed(const Duration(seconds: 3), () {
             if (mounted) {
-              _service.nextQuestion(
-                  widget.roomCode, _displayedQuestion, total);
+              _service.nextQuestion(widget.roomCode, _displayedQuestion);
             }
           });
         }
@@ -78,18 +77,23 @@ class _QuizScreenState extends State<QuizScreen> {
   Future<void> _submitAnswer(int index, int correct) async {
     if (_myAnswer != null || _revealed) return;
     final isCorrect = index == correct;
-    final score = isCorrect ? (_timeLeft * 100) : 0;
     setState(() => _myAnswer = index);
     AudioService.instance.playSfx(isCorrect ? 'correct' : 'wrong');
-    await _service.submitAnswer(widget.roomCode, index, score);
+    await _service.submitAnswer(widget.roomCode, index);
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<Doc>(
       stream: _service.gameStream(widget.roomCode),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return pixelLoading();
+        if (!snapshot.data!.exists) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) Navigator.pop(context);
+          });
+          return pixelLoading();
+        }
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final status = data['status'] as String;

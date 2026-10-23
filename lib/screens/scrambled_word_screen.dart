@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../net/server_client.dart';
 import '../services/scrambled_word_service.dart';
 import '../services/audio_service.dart';
 import '../theme/pixel_ui.dart';
@@ -105,7 +105,7 @@ class _ScrambledWordScreenState extends State<ScrambledWordScreen>
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<Doc>(
       stream: _service.gameStream(widget.roomCode),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return pixelLoading();
