@@ -434,7 +434,7 @@ class _RopePainter extends CustomPainter {
   bool shouldRepaint(covariant _RopePainter old) => old.t != t;
 }
 
-/// Qiyinlik yuzi: 0 — 🥲 (oson), 0.5 — 😏 (o'rta), 1 — 😈 (qiyin).
+/// Qiyinlik yuzi: 0 — 🥱 (oson), 0.5 — 😏 (o'rta), 1 — 😈 (qiyin).
 /// Oraliqda yuzlar bir-biriga silliq almashadi.
 /// Rasmlar: Microsoft Fluent Emoji 3D (MIT litsenziyasi).
 class EmojiFace extends StatelessWidget {
