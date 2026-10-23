@@ -17,6 +17,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 ///   WEB_DIR         — Flutter web build papkasi
 ///   DATA_DIR        — users.json saqlanadigan papka
 ///   PUBLIC_URL      — ilovaning ochiq manzili (Render'da RENDER_EXTERNAL_URL o'zi beriladi)
+///   ADMIN_IDS       — adminlarning Telegram ID lari (vergul bilan); ADMIN_ID yoki ADMIN ham bo'ladi
 Future<void> main() async {
   final env = Platform.environment;
   final port = int.tryParse(env['PORT'] ?? '') ?? 8080;
@@ -32,6 +33,14 @@ Future<void> main() async {
     stderr.writeln('DIQQAT: BOT_TOKEN berilmagan — Telegram orqali kirish ishlamaydi');
   }
 
+  // Adminlar: raqamlarni ajratib olamiz ("123, 456" yoki "tg123" ham bo'ladi)
+  final adminIds = {
+    for (final m in RegExp(r'\d{3,}').allMatches(
+        '${env['ADMIN_IDS'] ?? ''} ${env['ADMIN_ID'] ?? ''} ${env['ADMIN'] ?? ''}'))
+      m.group(0)!,
+  };
+  stdout.writeln('Adminlar: ${adminIds.length} ta');
+
   final botUsername = await _fetchBotUsername(botToken);
   final store = Store(dataDir: dataDir);
   final hub = Hub(
@@ -41,6 +50,7 @@ Future<void> main() async {
     devLogin: devLogin,
     botUsername: botUsername,
     appShortName: appShortName,
+    adminIds: adminIds,
   )..onPresence = (uid, online) => updatePresence(store, uid, online);
 
   // /start ga javob beradigan bot (ochiq manzil ma'lum bo'lsa)

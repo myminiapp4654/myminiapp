@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../games/battleship/battleship_screen.dart';
@@ -12,6 +13,7 @@ import '../games/stack/stack_screen.dart';
 import '../games/walls/walls_screen.dart';
 import '../games/xo/xo_screen.dart';
 import '../net/server_client.dart';
+import '../telegram/telegram.dart';
 import '../ui/game_art.dart';
 import '../ui/kit.dart';
 import '../ui/setup.dart';
@@ -147,7 +149,10 @@ final _games = <_GameInfo>[
 
 /// Bosh ekran: o'yinlar galereyasi.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  /// Testlar uchun: barcha o'yinlarni ko'rsatish (null — admin bo'yicha).
+  final bool? allGames;
+
+  const HomeScreen({super.key, this.allGames});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -168,12 +173,52 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  /// Admin (yoki dasturchi debug rejimida) — barcha o'yinlar, qolganlar — faqat Stack.
+  List<_GameInfo> get _visible {
+    final all = widget.allGames ?? (kDebugMode || (ServerClient.instance.user.value?.admin ?? false));
+    return all ? _games : _games.where((g) => g.title == 'Stack').toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = ServerClient.instance.user.value?.name;
+    final games = _visible;
+    final single = games.length == 1;
     return GameScaffold(
       title: 'BREAK TIME',
       palette: GamePalette.home,
+      centerTitle: false,
+      actions: [
+        // Murojaat uchun — bosilsa Telegram profil ochiladi
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Center(
+            child: GestureDetector(
+              key: const ValueKey('contact'),
+              onTap: () => Telegram.openLink('https://t.me/Ulugbeck_dev'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white.withValues(alpha: 0.1),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.send_rounded, color: Color(0xFF4FC3F7), size: 14),
+                    SizedBox(width: 5),
+                    Text(
+                      'Murojaat: @Ulugbeck_dev',
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
       body: CustomScrollView(
         slivers: [
           SliverPadding(
@@ -200,11 +245,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+              // Bitta o'yin bo'lsa — katta kartochka
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: single ? 1 : 2,
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 14,
-                childAspectRatio: 0.82,
+                childAspectRatio: single ? 1.05 : 0.82,
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, i) {
@@ -222,10 +268,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         child: child,
                       ),
                     ),
-                    child: _GameTile(info: _games[i], loop: _loop),
+                    child: _GameTile(info: games[i], loop: _loop),
                   );
                 },
-                childCount: _games.length,
+                childCount: games.length,
               ),
             ),
           ),

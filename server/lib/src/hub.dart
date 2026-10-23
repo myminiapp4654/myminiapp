@@ -37,6 +37,9 @@ class Hub {
   final String? botUsername;
   final String appShortName;
 
+  /// Adminlarning Telegram ID lari — ularga barcha o'yinlar ko'rinadi.
+  final Set<String> adminIds;
+
   final _sessions = <_Session>{};
   final _watchers = <String, Set<_Session>>{};
   final _onlineByUid = <String, int>{};
@@ -51,6 +54,7 @@ class Hub {
     required this.devLogin,
     required this.botUsername,
     required this.appShortName,
+    this.adminIds = const {},
   }) {
     db.addListener(_onDocChanged);
   }
@@ -113,6 +117,7 @@ class Hub {
   void _auth(_Session s, Map<String, dynamic> msg) {
     String? uid;
     String? name;
+    var admin = false;
 
     final initData = msg['initData'];
     if (initData is String && initData.isNotEmpty) {
@@ -120,6 +125,7 @@ class Hub {
       if (user != null) {
         uid = 'tg${user.id}';
         name = user.name;
+        admin = adminIds.contains('${user.id}');
       }
     } else if (devLogin) {
       // Faqat test uchun (DEV_LOGIN=true): brauzerda Telegram'siz kirish
@@ -161,7 +167,7 @@ class Hub {
 
     s.send({
       't': 'authed',
-      'user': {'uid': uid, 'name': name},
+      'user': {'uid': uid, 'name': name, 'admin': admin},
       'bot': botUsername,
       'app': appShortName,
     });

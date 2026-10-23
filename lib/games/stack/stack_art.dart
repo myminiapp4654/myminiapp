@@ -40,11 +40,13 @@ class StackTowerPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _k = size.width * 0.6 / (StackGame.base * 2 * _c);
     // Minora tepasi ekranning ~45% balandligida
-    _origin = Offset(size.width / 2, size.height * 0.5 + cam * _h * _k);
+    // Boshida minora yerda (ekran pastida) turadi; tepasi ekran o'rtasidan
+    // oshganda kamera ko'tarila boshlaydi
+    final ground = size.height * 0.8;
+    final follow = size.height * 0.42 + (cam + 1) * _h * _k;
+    _origin = Offset(size.width / 2, max(ground, follow));
 
-    // Pastda "chuqurlikka" ketuvchi asos ustun
-    final base = g.tower.first;
-    _box(canvas, StackBox(base.x, base.z, base.w, base.d, -12), 0, heightLevels: 12);
+    _ground(canvas);
 
     final topLevel = g.score;
     final behind = <StackPiece>[], front = <StackPiece>[];
@@ -87,6 +89,36 @@ class StackTowerPainter extends CustomPainter {
           ..color = Colors.white.withValues(alpha: (1 - r) * 0.9),
       );
     }
+  }
+
+  /// Yer: minora ostidagi keng tekislik va yumshoq soya.
+  void _ground(Canvas canvas) {
+    const r = 60.0;
+    final floor = Path()
+      ..addPolygon([_iso(-r, 0, -r), _iso(r, 0, -r), _iso(r, 0, r), _iso(-r, 0, r)], true);
+    final rect = floor.getBounds();
+    canvas.drawPath(
+      floor,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [Colors.white.withValues(alpha: 0.10), Colors.white.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromCenter(center: _iso(0, 0, 0), width: rect.width * 0.6, height: rect.height * 0.6)),
+    );
+    // Minora soyasi
+    final b = g.tower.first;
+    final shadow = Path()
+      ..addPolygon([
+        _iso(b.x - 1, 0, b.z - 1),
+        _iso(b.x + b.w + 1, 0, b.z - 1),
+        _iso(b.x + b.w + 3, 0, b.z + b.d + 3),
+        _iso(b.x - 1, 0, b.z + b.d + 1),
+      ], true);
+    canvas.drawPath(
+      shadow,
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.35)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, _k * 1.5),
+    );
   }
 
   void _piece(Canvas canvas, StackPiece p) {

@@ -29,7 +29,10 @@ enum ConnState { connecting, online, offline }
 class AppUser {
   final String uid;
   final String name;
-  const AppUser(this.uid, this.name);
+
+  /// Admin — barcha o'yinlarni ko'radi (server Telegram ID bo'yicha aytadi).
+  final bool admin;
+  const AppUser(this.uid, this.name, {this.admin = false});
 }
 
 class _Topic {
@@ -185,7 +188,7 @@ class ServerClient {
     switch (msg['t']) {
       case 'authed':
         final u = msg['user'] as Map;
-        user.value = AppUser(u['uid'] as String, u['name'] as String);
+        user.value = AppUser(u['uid'] as String, u['name'] as String, admin: u['admin'] == true);
         botUsername = msg['bot'] as String?;
         appShortName = (msg['app'] as String?) ?? '';
         authError.value = null;

@@ -114,6 +114,9 @@ class GameScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final Widget? leading;
 
+  /// Sarlavha o'rtada (o'yinlarda) yoki chapda (bosh ekranda).
+  final bool centerTitle;
+
   const GameScaffold({
     super.key,
     required this.title,
@@ -121,6 +124,7 @@ class GameScaffold extends StatelessWidget {
     required this.body,
     this.actions,
     this.leading,
+    this.centerTitle = true,
   });
 
   @override
@@ -135,7 +139,7 @@ class GameScaffold extends StatelessWidget {
         surfaceTintColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
+        centerTitle: centerTitle,
         leading: leading,
         actions: actions,
       ),

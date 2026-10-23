@@ -15,4 +15,16 @@ void main() {
     }
     t.view.reset();
   });
+
+  testWidgets("oddiy foydalanuvchiga faqat Stack, adminga hammasi; murojaat tugmasi", (t) async {
+    await t.pumpWidget(const MaterialApp(home: HomeScreen(allGames: false)));
+    await t.pump(const Duration(milliseconds: 1200));
+    expect(find.byKey(const ValueKey('game-Stack')), findsOneWidget);
+    expect(find.byKey(const ValueKey('game-Shaxmat')), findsNothing);
+    expect(find.text('Murojaat: @Ulugbeck_dev'), findsOneWidget);
+    await t.pumpWidget(const MaterialApp(home: HomeScreen(allGames: true)));
+    await t.pump(const Duration(milliseconds: 1200));
+    expect(find.byKey(const ValueKey('game-Shaxmat')), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
+  });
 }

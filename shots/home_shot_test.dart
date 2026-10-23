@@ -10,4 +10,7 @@ void main() {
     await shoot(t, 'home', const HomeScreen());
     await t.pumpWidget(const SizedBox());
   });
+  testWidgets('home user', (t) async {
+    await shoot(t, 'home_user', const HomeScreen(allGames: false), pumps: const [Duration(milliseconds: 1500)]);
+  });
 }

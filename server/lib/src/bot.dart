@@ -128,6 +128,17 @@ class TelegramBot {
       return;
     }
 
+    // Telegram ID ni bilish (admin qilish uchun)
+    if (text.startsWith('/id')) {
+      final id = (msg['from'] as Map?)?['id'];
+      await _call('sendMessage', {
+        'chat_id': chatId,
+        'text': 'Sizning Telegram ID: <code>$id</code>',
+        'parse_mode': 'HTML',
+      });
+      return;
+    }
+
     // Guruhdagi UNO uchun bot bilan suhbat ochildi
     if (text == '/start uno') {
       await _send(
