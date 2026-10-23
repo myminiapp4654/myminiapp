@@ -344,7 +344,7 @@ class _DifficultyRopeState extends State<DifficultyRope> {
                         child: AnimatedScale(
                           scale: _dragging ? 1.15 : 1,
                           duration: const Duration(milliseconds: 150),
-                          child: CustomPaint(painter: FacePainter(p)),
+                          child: EmojiFace(p),
                         ),
                       ),
                     ],
@@ -434,122 +434,37 @@ class _RopePainter extends CustomPainter {
   bool shouldRepaint(covariant _RopePainter old) => old.t != t;
 }
 
-/// Smaylik: t=0 bechora sariq kulgich, t=0.5 jahldor to'q sariq, t=1 binafsharang shayton.
-class FacePainter extends CustomPainter {
+/// Qiyinlik yuzi: 0 — 🥲 (oson), 0.5 — 😏 (o'rta), 1 — 😈 (qiyin).
+/// Oraliqda yuzlar bir-biriga silliq almashadi.
+/// Rasmlar: Microsoft Fluent Emoji 3D (MIT litsenziyasi).
+class EmojiFace extends StatelessWidget {
   final double t;
-  FacePainter(this.t);
+  const EmojiFace(this.t, {super.key});
+
+  static const _files = ['easy', 'medium', 'hard'];
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide;
-    final c = size.center(Offset.zero) + Offset(0, s * 0.04);
-    final r = s * 0.42;
-    final base = t < 0.5
-        ? Color.lerp(const Color(0xFFFFE066), const Color(0xFFFF9F43), t * 2)!
-        : Color.lerp(const Color(0xFFFF9F43), const Color(0xFF9B30FF), (t - 0.5) * 2)!;
-    final devil = ((t - 0.55) / 0.45).clamp(0.0, 1.0);
-
-    // Shoxlar (shayton tomonga o'sadi)
-    if (devil > 0) {
-      final hornPaint = Paint()..color = Color.lerp(base, const Color(0xFF4A0080), 0.3)!;
-      for (final side in [-1.0, 1.0]) {
-        final h = Path()
-          ..moveTo(c.dx + side * r * 0.45, c.dy - r * 0.75)
-          ..quadraticBezierTo(c.dx + side * r * 0.95, c.dy - r * (0.95 + 0.5 * devil),
-              c.dx + side * r * 0.62, c.dy - r * (1.0 + 0.55 * devil))
-          ..quadraticBezierTo(c.dx + side * r * 0.75, c.dy - r * 0.9, c.dx + side * r * 0.82, c.dy - r * 0.5)
-          ..close();
-        canvas.drawPath(h, hornPaint);
-      }
-    }
-
-    // Yuz
-    canvas.drawCircle(c + Offset(0, s * 0.03), r, Paint()..color = Colors.black38);
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.3, -0.4),
-          colors: [Color.lerp(base, Colors.white, 0.55)!, base, Color.lerp(base, Colors.black, 0.3)!],
-          stops: const [0, 0.6, 1],
-        ).createShader(Rect.fromCircle(center: c, radius: r)),
+  Widget build(BuildContext context) {
+    final x = t.clamp(0.0, 1.0) * 2;
+    return Transform.rotate(
+      // Qiyinga yaqinlashgan sari biroz qiyshayadi
+      angle: (t - 0.5) * 0.25,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          for (var k = 0; k < 3; k++)
+            Opacity(
+              opacity: (1 - (x - k).abs()).clamp(0.0, 1.0),
+              child: Image.asset(
+                'assets/images/emoji/${_files[k]}.png',
+                filterQuality: FilterQuality.medium,
+                gaplessPlayback: true,
+              ),
+            ),
+        ],
+      ),
     );
-
-    final ink = Paint()
-      ..color = const Color(0xFF2B1B10)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = s * 0.045
-      ..strokeCap = StrokeCap.round;
-    final fill = Paint()..color = const Color(0xFF2B1B10);
-
-    // Qoshlar: osonda yo'q, o'rtada tekis, qiyinda yovuz (qiya)
-    final browTilt = t * r * 0.35;
-    if (t > 0.25) {
-      for (final side in [-1.0, 1.0]) {
-        canvas.drawLine(
-          Offset(c.dx + side * r * 0.62, c.dy - r * 0.42 - browTilt * 0.2),
-          Offset(c.dx + side * r * 0.15, c.dy - r * 0.42 + browTilt * 0.6),
-          ink,
-        );
-      }
-    }
-
-    // Ko'zlar: osonda katta yumaloq "bechora" ko'zlar
-    final eyeR = r * (0.17 - 0.07 * t);
-    for (final side in [-1.0, 1.0]) {
-      final e = Offset(c.dx + side * r * 0.36, c.dy - r * 0.12);
-      if (t < 0.5) {
-        canvas.drawCircle(e, eyeR, Paint()..color = Colors.white);
-        canvas.drawCircle(e + Offset(0, eyeR * 0.25), eyeR * 0.6, fill);
-        canvas.drawCircle(e + Offset(-eyeR * 0.25, -eyeR * 0.1), eyeR * 0.22, Paint()..color = Colors.white);
-      } else {
-        // Ko'zlar qisilib, qizil yonadi
-        canvas.drawOval(Rect.fromCenter(center: e, width: eyeR * 2.4, height: eyeR * 1.4),
-            Paint()..color = Color.lerp(Colors.white, const Color(0xFFFFEB3B), devil)!);
-        canvas.drawCircle(e, eyeR * 0.55, Paint()..color = Color.lerp(fill.color, const Color(0xFFE53935), devil)!);
-      }
-    }
-
-    // Og'iz: osonda yumshoq tabassum, qiyinda yovuz tishli kulgi
-    final mouthY = c.dy + r * 0.38;
-    if (devil <= 0) {
-      final smile = Path()
-        ..moveTo(c.dx - r * 0.38, mouthY - r * 0.05)
-        ..quadraticBezierTo(c.dx, mouthY + r * (0.32 - t * 0.5), c.dx + r * 0.38, mouthY - r * 0.05);
-      canvas.drawPath(smile, ink);
-    } else {
-      final grin = Path()
-        ..moveTo(c.dx - r * 0.5, mouthY - r * 0.12)
-        ..quadraticBezierTo(c.dx, mouthY + r * 0.45, c.dx + r * 0.5, mouthY - r * 0.12)
-        ..quadraticBezierTo(c.dx, mouthY + r * 0.1, c.dx - r * 0.5, mouthY - r * 0.12)
-        ..close();
-      canvas.drawPath(grin, fill);
-      // Tishlar
-      final teeth = Paint()..color = Colors.white.withValues(alpha: devil);
-      for (final dx in [-0.22, 0.22]) {
-        final tp = Path()
-          ..moveTo(c.dx + r * (dx - 0.08), mouthY + r * 0.02)
-          ..lineTo(c.dx + r * dx, mouthY + r * 0.18)
-          ..lineTo(c.dx + r * (dx + 0.08), mouthY + r * 0.04)
-          ..close();
-        canvas.drawPath(tp, teeth);
-      }
-    }
-
-    // Osonda — yuzida qizarish
-    if (t < 0.3) {
-      final blush = Paint()..color = const Color(0xFFFF8A80).withValues(alpha: 0.5 * (1 - t / 0.3));
-      for (final side in [-1.0, 1.0]) {
-        canvas.drawOval(
-            Rect.fromCenter(center: Offset(c.dx + side * r * 0.55, c.dy + r * 0.18), width: r * 0.32, height: r * 0.18),
-            blush);
-      }
-    }
   }
-
-  @override
-  bool shouldRepaint(covariant FacePainter old) => old.t != t;
 }
 
 /// Kichik taxta rasmi (o'lcham tanlash kartochkalari uchun).

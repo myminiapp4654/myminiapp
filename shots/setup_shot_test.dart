@@ -20,6 +20,13 @@ void main() {
         before: (t) async {
       await t.pump(const Duration(milliseconds: 1200));
       await openGame(t, 'Shaxmat');
+      // Emoji rasmlari yuklanib ulgursin
+      await t.runAsync(() async {
+        for (final e in t.widgetList<Image>(find.byType(Image))) {
+          await precacheImage(e.image, t.element(find.byType(Image).first));
+        }
+      });
+      await t.pump(const Duration(milliseconds: 100));
       final rope = t.getRect(find.byKey(const ValueKey('rope')));
       await t.tapAt(Offset(rope.left + 20, rope.center.dy));
       await t.pump(const Duration(milliseconds: 600));
@@ -29,6 +36,10 @@ void main() {
     await t.pump(const Duration(milliseconds: 600));
     await t.pump(const Duration(milliseconds: 400));
     await expectLater(find.byKey(const ValueKey('shot')), matchesGoldenFile('out/setup_chess_hard.png'));
+    await t.tapAt(rope.center);
+    await t.pump(const Duration(milliseconds: 600));
+    await t.pump(const Duration(milliseconds: 400));
+    await expectLater(find.byKey(const ValueKey('shot')), matchesGoldenFile('out/setup_chess_mid.png'));
   });
 
   testWidgets('ludo setup', (t) async {
