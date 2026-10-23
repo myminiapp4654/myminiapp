@@ -16,6 +16,7 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 ///   DEV_LOGIN       — true bo'lsa brauzerda Telegram'siz test qilish mumkin
 ///   WEB_DIR         — Flutter web build papkasi
 ///   DATA_DIR        — users.json saqlanadigan papka
+///   PUBLIC_URL      — ilovaning ochiq manzili (Render'da RENDER_EXTERNAL_URL o'zi beriladi)
 Future<void> main() async {
   final env = Platform.environment;
   final port = int.tryParse(env['PORT'] ?? '') ?? 8080;
@@ -24,6 +25,8 @@ Future<void> main() async {
   final appShortName = env['APP_SHORT_NAME'] ?? '';
   final webDir = env['WEB_DIR'] ?? '../build/web';
   final dataDir = env['DATA_DIR'] ?? 'data';
+  final publicUrl = (env['PUBLIC_URL'] ?? env['RENDER_EXTERNAL_URL'] ?? '')
+      .replaceAll(RegExp(r'/+$'), '');
 
   if (botToken.isEmpty) {
     stderr.writeln('DIQQAT: BOT_TOKEN berilmagan — Telegram orqali kirish ishlamaydi');
@@ -40,6 +43,11 @@ Future<void> main() async {
     appShortName: appShortName,
   );
 
+  // /start ga javob beradigan bot (ochiq manzil ma'lum bo'lsa)
+  final bot = botToken.isNotEmpty && publicUrl.startsWith('https://')
+      ? TelegramBot(token: botToken, publicUrl: publicUrl)
+      : null;
+
   final wsHandler = webSocketHandler((ws, _) => hub.handle(ws),
       pingInterval: const Duration(seconds: 25));
 
@@ -52,6 +60,9 @@ Future<void> main() async {
   FutureOr<Response> handler(Request req) async {
     final path = req.url.path;
     if (path == 'ws') return wsHandler(req);
+    if (bot != null && path == bot.webhookPath && req.method == 'POST') {
+      return bot.handle(req);
+    }
     if (path == 'health') {
       return Response.ok(
         jsonEncode({
@@ -99,6 +110,13 @@ Future<void> main() async {
     await hub.closeAll();
     await server.close(force: true);
     exit(0);
+  }
+
+  // Server tinglay boshlagandan keyin botni sozlaymiz
+  if (bot != null) {
+    unawaited(bot.setup());
+  } else if (botToken.isNotEmpty) {
+    stderr.writeln("PUBLIC_URL noma'lum — bot /start ga javob bermaydi");
   }
 
   ProcessSignal.sigint.watch().listen((_) => shutdown());

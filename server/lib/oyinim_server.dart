@@ -1,5 +1,6 @@
 library;
 
+export 'src/bot.dart';
 export 'src/context.dart';
 export 'src/games/games.dart';
 export 'src/games/rooms.dart';
