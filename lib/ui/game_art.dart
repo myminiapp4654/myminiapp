@@ -6,7 +6,7 @@ import '../games/chess/chess_pieces.dart';
 import 'crown.dart';
 
 /// Bosh ekrandagi o'yin kartochkalari uchun kichik rasmlar.
-enum GameArt { xo, chess, checkers, battleship, snakes, chain, orbs, walls }
+enum GameArt { xo, chess, checkers, battleship, snakes, maze, chain, orbs, walls }
 
 class GameArtPainter extends CustomPainter {
   final GameArt art;
@@ -29,6 +29,8 @@ class GameArtPainter extends CustomPainter {
         _ship(canvas, s);
       case GameArt.snakes:
         _snakes(canvas, s);
+      case GameArt.maze:
+        _maze(canvas, s);
       case GameArt.chain:
         _chain(canvas, s);
       case GameArt.orbs:
@@ -213,6 +215,52 @@ class GameArtPainter extends CustomPainter {
     for (final o in const [Offset(-1, -1), Offset(1, 1), Offset(0, 0)]) {
       c.drawCircle(die.center + o * s * 0.05, s * 0.017, Paint()..color = const Color(0xFF1A1A2E));
     }
+  }
+
+  void _maze(Canvas c, double s) {
+    // Kichik qo'lda chizilgan labirint (9×9)
+    const rows = [
+      '####.####',
+      '#.....#.#',
+      '#.###.#.#',
+      '#...#...#',
+      '###.###.#',
+      '#.#...#.#',
+      '#.###.#.#',
+      '#.....#.#',
+      '######.##',
+    ];
+    final q = s * 0.84 / 9;
+    final o = s * 0.08;
+    c.drawRect(Rect.fromLTWH(o, o, q * 9, q * 9), Paint()..color = const Color(0xFF0E0B0A));
+    for (var r = 0; r < 9; r++) {
+      for (var k = 0; k < 9; k++) {
+        if (rows[r][k] != '#') continue;
+        final rect = Rect.fromLTWH(o + k * q, o + r * q, q + 0.5, q + 0.5);
+        c.drawRect(rect, Paint()..color = const Color(0xFF9A4F2C));
+        c.drawRect(Rect.fromLTWH(rect.left, rect.top, q, q * 0.2), Paint()..color = const Color(0xFFC0703F));
+      }
+    }
+    // Chizilayotgan yo'l
+    const route = [(0, 4), (1, 4), (1, 5), (2, 5), (3, 5), (3, 6), (3, 7), (4, 7), (5, 7), (6, 7), (7, 7)];
+    final shown = (route.length * (0.35 + 0.65 * t)).ceil().clamp(2, route.length);
+    final path = Path();
+    for (var k = 0; k < shown; k++) {
+      final (r, col) = route[k];
+      final p = Offset(o + (col + 0.5) * q, o + (r + 0.5) * q);
+      k == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+    }
+    c.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = q * 0.45
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0xFFFFC233),
+    );
+    final (hr, hc) = route[shown - 1];
+    c.drawCircle(Offset(o + (hc + 0.5) * q, o + (hr + 0.5) * q), q * 0.32, Paint()..color = Colors.white);
   }
 
   void _chain(Canvas c, double s) {

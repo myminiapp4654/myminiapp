@@ -4,6 +4,7 @@ import '../games/battleship/battleship_screen.dart';
 import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
 import '../games/chess/chess_screen.dart';
+import '../games/maze/maze_screen.dart';
 import '../games/snakes/snakes_screen.dart';
 import '../games/orbs/orbs_screen.dart';
 import '../games/walls/walls_screen.dart';
@@ -109,6 +110,13 @@ final _games = <_GameInfo>[
   }),
   _GameInfo('X-O', 'Kompyuterga qarshi', GameArt.xo,
       const [Color(0xFF1D4ED8), Color(0xFF0B1A4A)], _openXo),
+  _GameInfo('Labirint', "Yo'lni chizing", GameArt.maze,
+      const [Color(0xFFB4532A), Color(0xFF3A1A0C)], (context) async {
+    final level = await showLevelSetup(context,
+        title: 'Labirint', colors: const [Color(0xFFFFC233), Color(0xFFB4532A)]);
+    if (level == null || !context.mounted) return;
+    await _push(context, MazeScreen(level: level));
+  }),
   _GameInfo('Chain Reaction', '1–7 kompyuter', GameArt.chain,
       const [Color(0xFFE91E63), Color(0xFF4A0D2E)], (context) async {
     final s = await showChainSetup(context);
