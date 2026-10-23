@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oyinim/games/battleship/battleship_placement.dart';
 import 'package:oyinim/games/battleship/battleship_screen.dart';
 import 'package:oyinim/games/battleship/battleship_game.dart';
 
@@ -181,5 +182,88 @@ void main() {
     await t.tap(find.byKey(const ValueKey('target-0')));
     await t.pump();
     expect(find.textContaining('a1 — '), findsOneWidget);
+  });
+
+  group('Sudrab joylashtirish', () {
+    late Fleet fleet;
+
+    Future<void> pumpPlacement(WidgetTester t) async {
+      t.view.physicalSize = const Size(1080, 2400);
+      t.view.devicePixelRatio = 2.5;
+      addTearDown(t.view.reset);
+      fleet = Fleet();
+      await t.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: BattleshipPlacement(fleet: fleet, title: 'Test', onReady: () {}),
+        ),
+      ));
+    }
+
+    /// Portdagi [k]-kemani chap katagidan ushlab, taxtadagi [cell] ga olib boradi.
+    Future<void> dragPortShip(WidgetTester t, int k, int cell) async {
+      final ship = t.getRect(find.byKey(ValueKey('port-$k')));
+      final target = t.getCenter(find.byKey(ValueKey('place-$cell')));
+      final grip = Offset(ship.left + 5, ship.center.dy);
+      final g = await t.startGesture(grip);
+      await g.moveBy(const Offset(0, -20));
+      await t.pump();
+      await g.moveTo(target);
+      await t.pump();
+      await g.up();
+      await t.pump();
+    }
+
+    testWidgets("portdan sudrab qo'yiladi", (t) async {
+      await pumpPlacement(t);
+      expect(find.byKey(const ValueKey('port-0')), findsOneWidget);
+      await dragPortShip(t, 0, sq('b2')); // 4 katakli kema b2 dan
+      expect(fleet.ships.single.cells, [sq('b2'), sq('c2'), sq('d2'), sq('e2')]);
+      expect(fleet.remaining.contains(4), isFalse);
+    });
+
+    testWidgets("taxtadagi kemani bosish — buriladi", (t) async {
+      await pumpPlacement(t);
+      await dragPortShip(t, 0, sq('b2'));
+      await t.tap(find.byKey(ValueKey('place-${sq('c2')}')));
+      await t.pump();
+      expect(fleet.ships.single.cells, [sq('b2'), sq('b3'), sq('b4'), sq('b5')]);
+    });
+
+    testWidgets("qo'yib bo'lmaydigan joyga tashlansa — portda qoladi", (t) async {
+      await pumpPlacement(t);
+      await dragPortShip(t, 0, sq('g2')); // g,h,i — sig'maydi
+      expect(fleet.ships, isEmpty);
+    });
+
+    testWidgets("taxtadan tashqariga tashlansa — portga qaytadi", (t) async {
+      await pumpPlacement(t);
+      await dragPortShip(t, 0, sq('b2'));
+      final g = await t.startGesture(t.getCenter(find.byKey(ValueKey('place-${sq('c2')}'))));
+      await g.moveBy(const Offset(0, -20));
+      await t.pump();
+      await g.moveTo(const Offset(10, 10)); // ekran burchagi — taxtadan tashqarida
+      await t.pump();
+      await g.up();
+      await t.pump();
+      expect(fleet.ships, isEmpty);
+    });
+  
+    for (final size in const [Size(320, 568), Size(360, 640), Size(412, 915)]) {
+      testWidgets("${size.width.toInt()}×${size.height.toInt()} ekranga sig'adi", (t) async {
+        t.view.physicalSize = size;
+        t.view.devicePixelRatio = 1;
+        addTearDown(t.view.reset);
+        await t.pumpWidget(MaterialApp(
+          home: Scaffold(
+            appBar: AppBar(title: const Text('Dengiz jangi')),
+            body: SafeArea(
+              child: BattleshipPlacement(
+                  fleet: Fleet(), title: "1-o'yinchi", onReady: () {}),
+            ),
+          ),
+        ));
+        expect(t.takeException(), isNull);
+      });
+    }
   });
 }

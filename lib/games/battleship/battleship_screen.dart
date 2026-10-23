@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'battleship_game.dart';
+import 'battleship_placement.dart';
 
 /// Dengiz jangi: bitta telefonda ikki kishi.
 /// Navbat almashganda telefon uzatiladi — raqib kemalarni ko'rmasligi uchun
@@ -24,10 +25,6 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
   /// Tegmadi — navbatni o'tkazish kutilmoqda.
   bool _awaitingPass = false;
 
-  // Joylashtirish
-  bool _horizontal = true;
-  int? _length;
-
   /// Oxirgi otish natijasi (ekranda ko'rsatish uchun).
   String? _lastShot;
 
@@ -42,34 +39,9 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
 
   // ---------------------------------------------------------------- joylashtirish
 
-  void _placeTap(int cell) {
-    final fleet = _game.fleets[_viewer];
-    if (fleet.shipAt(cell) != null) {
-      setState(() => fleet.removeAt(cell));
-      return;
-    }
-    final remaining = fleet.remaining;
-    if (remaining.isEmpty) return;
-    final length =
-        _length != null && remaining.contains(_length) ? _length! : remaining.first;
-    if (!fleet.place(cell, length, _horizontal)) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text("Bu yerga qo'yib bo'lmaydi (chetga chiqadi yoki boshqa kemaga tegadi)"),
-          duration: Duration(seconds: 2),
-        ));
-      return;
-    }
-    setState(() {
-      if (!fleet.remaining.contains(_length)) _length = null;
-    });
-  }
-
   void _donePlacing() => setState(() {
         _game.finishPlacing();
         _covered = true;
-        _length = null;
       });
 
   // ---------------------------------------------------------------- jang
@@ -147,79 +119,12 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
     );
   }
 
-  Widget _buildPlacing() {
-    final fleet = _game.fleets[_viewer];
-    final remaining = fleet.remaining;
-    final lengths = remaining.toSet().toList()..sort((a, b) => b - a);
-    final selected =
-        _length != null && remaining.contains(_length) ? _length : remaining.firstOrNull;
-    final scheme = Theme.of(context).colorScheme;
-
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        Text('${_name(_viewer)}: kemalarni joylashtiring',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        const Text("Katakni bosing — kema shu yerdan boshlanadi. "
-            "Kemani bossangiz — olib tashlanadi."),
-        const SizedBox(height: 12),
-        if (remaining.isNotEmpty) ...[
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final l in lengths)
-                ChoiceChip(
-                  label: Text('$l katak × ${remaining.where((x) => x == l).length}'),
-                  selected: l == selected,
-                  onSelected: (_) => setState(() => _length = l),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: true, label: Text('Gorizontal')),
-              ButtonSegment(value: false, label: Text('Vertikal')),
-            ],
-            selected: {_horizontal},
-            onSelectionChanged: (s) => setState(() => _horizontal = s.first),
-          ),
-        ] else
-          const Text("Hamma kemalar joyida!"),
-        const SizedBox(height: 12),
-        _Grid(
-          keyPrefix: 'place',
-          cellColor: (i) => fleet.shipAt(i) != null ? scheme.primary : null,
-          onTap: _placeTap,
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => setState(fleet.randomize),
-                child: const Text('Tasodifiy'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => setState(fleet.clear),
-                child: const Text('Tozalash'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        FilledButton(
-          key: const ValueKey('ready'),
-          onPressed: fleet.complete ? _donePlacing : null,
-          child: const Text('Tayyor'),
-        ),
-      ],
-    );
-  }
+  Widget _buildPlacing() => BattleshipPlacement(
+        key: ValueKey('placing-$_viewer-${_game.round}'),
+        fleet: _game.fleets[_viewer],
+        title: '${_name(_viewer)}: kemalarni joylashtiring',
+        onReady: _donePlacing,
+      );
 
   /// Raqib taxtasi: men otgan joylar.
   Color? _targetColor(int i, int shooter) {
