@@ -3,10 +3,11 @@
 services:
   - type: web
     name: oyinim
-    runtime: docker
+    runtime: node
     plan: free
     branch: telegram-mini-app
-    dockerfilePath: ./Dockerfile
+    buildCommand: bash render-build.sh
+    startCommand: ./start.sh
     healthCheckPath: /health
     autoDeploy: true
     envVars:

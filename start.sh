@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # Render Start Command:  ./start.sh
-export WEB_DIR="${WEB_DIR:-build/web}"
+# deploy/ papkasidagi tayyor server va ilovani ishga tushiradi.
+set -e
+chmod +x deploy/oyinim-server
+export WEB_DIR="${WEB_DIR:-deploy/web}"
 export DATA_DIR="${DATA_DIR:-data}"
-exec ./server/oyinim-server
+mkdir -p "$DATA_DIR"
+exec ./deploy/oyinim-server
