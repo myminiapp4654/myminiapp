@@ -33,13 +33,12 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
   final _game = BattleshipGame();
   late final Random _rnd = Random(widget.seed);
 
-  /// Katta taxtada kompyuter otishi ko'rsatilyaptimi.
+  /// Kompyuter navbati davom etyapti.
   bool _aiView = false;
-  Timer? _timer;
 
-  /// Oxirgi otish natijasi (banner uchun).
-  String? _banner;
-  ShotResult? _lastResult;
+  /// Oxirgi otish natijasi har bir taxta uchun: [0] — raqib (katta), [1] — siz (kichik).
+  final _shot = <(String, ShotResult)?>[null, null];
+  Timer? _timer;
 
   /// Otish effektlari: [0] — raqib taxtasida, [1] — mening taxtamda.
   final _fxCell = <int?>[null, null];
@@ -75,8 +74,6 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
     setState(() {
       _game.finishPlacing();
       _aiPlaceIfNeeded();
-      _banner = null;
-      _lastResult = null;
     });
     // Kompyuter boshlasa
     if (_game.phase == Phase.battle && _game.current == _ai) {
@@ -101,9 +98,8 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
         ShotResult.repeat => '',
       };
 
-  void _showShot(int board, int cell, ShotResult result, String prefix) {
-    _banner = '$prefix${cellName(cell)} — ${_resultText(result)}';
-    _lastResult = result;
+  void _showShot(int board, int cell, ShotResult result) {
+    _shot[board] = (cellName(cell), result);
     _fxCell[board] = cell;
     _fxHit[board] = result != ShotResult.miss;
     _fxId[board]++;
@@ -118,16 +114,12 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
     if (!_myTurn) return;
     final result = _game.fire(cell);
     if (result == ShotResult.repeat) return;
-    setState(() => _showShot(0, cell, result, ''));
+    setState(() => _showShot(0, cell, result));
     if (result == ShotResult.miss) _later(1000, _startAiTurn);
   }
 
   void _startAiTurn() {
-    setState(() {
-      _aiView = true;
-      _banner = "Kompyuter nishonga olyapti…";
-      _lastResult = null;
-    });
+    setState(() => _aiView = true);
     _later(900, _aiShoot);
   }
 
@@ -135,14 +127,10 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
     if (_game.phase != Phase.battle || _game.current != _ai) return;
     final cell = battleshipAiShot(_game, _ai, widget.level, _rnd);
     final result = _game.fire(cell);
-    setState(() => _showShot(1, cell, result, 'Kompyuter: '));
+    setState(() => _showShot(1, cell, result));
     if (_game.phase == Phase.finished) return;
     if (result == ShotResult.miss) {
-      _later(1100, () => setState(() {
-            _aiView = false;
-            _banner = null;
-            _lastResult = null;
-          }));
+      _later(1100, () => setState(() => _aiView = false));
     } else {
       _later(850, _aiShoot);
     }
@@ -155,8 +143,7 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
       _game.newRound();
       _aiPlaceIfNeeded();
       _aiView = false;
-      _banner = null;
-      _lastResult = null;
+      _shot[0] = _shot[1] = null;
       _fxCell[0] = _fxCell[1] = null;
     });
   }
@@ -279,15 +266,61 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
             style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w800)),
       );
 
-  Widget _buildBattle() {
-    final (bannerColor, bannerIcon) = switch (_lastResult) {
+  /// Taxta ustida chiqadigan natija: "e5 — Tegdi!" (bir zum ko'rinib, so'nadi).
+  Widget _resultBadge(int board, {bool small = false}) {
+    final shot = _shot[board];
+    if (shot == null) return const SizedBox.shrink();
+    final (name, result) = shot;
+    final (color, icon) = switch (result) {
       ShotResult.hit => (const Color(0xFFFF7043), Icons.local_fire_department_rounded),
       ShotResult.sunk => (const Color(0xFFFFB300), Icons.whatshot_rounded),
-      ShotResult.miss => (const Color(0xFF4FD1FF), Icons.water_drop_rounded),
-      _ => (Colors.white54, Icons.gps_fixed_rounded),
+      _ => (const Color(0xFF4FD1FF), Icons.water_drop_rounded),
     };
-    final banner = _banner ?? 'Raqib dengizidan katak tanlang';
+    return IgnorePointer(
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey('fx-$board-${_fxId[board]}'),
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 1500),
+          builder: (_, t, child) {
+            final pop = Curves.easeOutBack.transform((t / 0.2).clamp(0.0, 1.0));
+            final fade = t < 0.7 ? 1.0 : (1 - t) / 0.3;
+            return Opacity(
+              opacity: fade.clamp(0.0, 1.0),
+              child: Transform.scale(scale: 0.6 + 0.4 * pop, child: child),
+            );
+          },
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: small ? 10 : 16, vertical: small ? 6 : 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color, width: 2),
+              boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 18)],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: small ? 18 : 24),
+                const SizedBox(width: 6),
+                Text(
+                  '$name — ${_resultText(result)}',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: small ? 16 : 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
+  Widget _buildBattle() {
+    final status = _aiView ? 'Kompyuter otyapti…' : 'Sizning navbatingiz — raqib dengiziga oting';
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
       children: [
@@ -306,73 +339,72 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 34,
+        const SizedBox(height: 10),
+        Center(
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 250),
-            transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
-            child: Row(
-              key: ValueKey(banner),
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(bannerIcon, color: bannerColor, size: 24),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: GlowText(banner, size: _banner == null ? 17 : 22, color: bannerColor),
-                  ),
-                ),
-              ],
+            child: Text(
+              status,
+              key: ValueKey(status),
+              style: TextStyle(
+                color: _aiView ? const Color(0xFFFF8A65) : const Color(0xFF9BE7FF),
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),
         const SizedBox(height: 8),
-        // Katta taxta: navbatingizda — raqib dengizi, kompyuter navbatida — sizniki
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 380),
-          switchInCurve: Curves.easeOutBack,
-          transitionBuilder: (c, a) => ScaleTransition(
-            scale: Tween(begin: 0.85, end: 1.0).animate(a),
-            child: FadeTransition(opacity: a, child: c),
-          ),
-          child: Column(
-            key: ValueKey('big-$_aiView'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _caption(_aiView ? 'SIZNING DENGIZINGIZ' : 'RAQIB DENGIZI'),
-              _aiView ? _own(big: true) : _target(big: true),
-            ],
-          ),
+        // Katta taxta — doim raqib dengizi, natija uning ustida
+        _caption('RAQIB DENGIZI'),
+        Stack(
+          children: [
+            _target(big: true),
+            Positioned.fill(child: _resultBadge(0)),
+          ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
+        // Pastda — sizning dengizingiz, kompyuter otganda natija shu yerda
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 5,
+              flex: 7,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _caption(_aiView ? 'Raqib dengizi' : 'Sizning dengizingiz'),
-                  _aiView ? _target(big: false) : _own(big: false),
+                  _caption('SIZNING DENGIZINGIZ'),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: _aiView
+                          ? [BoxShadow(color: const Color(0xFFFF7043).withValues(alpha: 0.55), blurRadius: 18)]
+                          : null,
+                    ),
+                    child: Stack(
+                      children: [
+                        _own(big: false),
+                        Positioned.fill(child: _resultBadge(1, small: true)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
-              flex: 4,
+              flex: 3,
               child: Padding(
                 padding: const EdgeInsets.only(top: 22),
                 child: Glass(
+                  padding: const EdgeInsets.all(10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('${_game.round}-raund',
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 6),
-                      const Text('Tekkizsangiz — yana otasiz. Kema portlasa, atrofi belgilanadi.',
+                      const Text('Tekkizsangiz — yana otasiz.',
                           style: TextStyle(color: Colors.white60, fontSize: 11)),
                     ],
                   ),

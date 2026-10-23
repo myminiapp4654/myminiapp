@@ -220,16 +220,15 @@ void main() {
       await t.pump(const Duration(milliseconds: 50));
       if (find.textContaining('Tegmadi').evaluate().isNotEmpty) break;
     }
-    // Kompyuter navbati: katta taxtada sizning dengizingiz
+    // Katta taxta joyida qoladi, kompyuter navbati boshlanadi
     await t.pump(const Duration(milliseconds: 1100));
-    expect(find.text('SIZNING DENGIZINGIZ'), findsOneWidget);
-    await t.pump(const Duration(milliseconds: 1000));
-    expect(find.textContaining('Kompyuter: '), findsOneWidget);
+    expect(find.text('RAQIB DENGIZI'), findsOneWidget);
+    expect(find.text('Kompyuter otyapti…'), findsOneWidget);
     // ...va oxiri navbat qaytadi
-    for (var k = 0; k < 60 && find.text('RAQIB DENGIZI').evaluate().isEmpty; k++) {
+    for (var k = 0; k < 60 && find.text('Kompyuter otyapti…').evaluate().isNotEmpty; k++) {
       await t.pump(const Duration(milliseconds: 500));
     }
-    expect(find.text('RAQIB DENGIZI'), findsOneWidget);
+    expect(find.textContaining('Sizning navbatingiz'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
   });
 
