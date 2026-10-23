@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../games/battleship/battleship_screen.dart';
 import '../games/checkers/checkers_screen.dart';
 import '../games/xo/xo_screen.dart';
 
@@ -59,6 +60,16 @@ class HomeScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const CheckersScreen())),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.directions_boat),
+              title: const Text('Dengiz jangi'),
+              subtitle: const Text('Ikki kishi, bitta telefonda'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const BattleshipScreen())),
             ),
           ),
         ],
