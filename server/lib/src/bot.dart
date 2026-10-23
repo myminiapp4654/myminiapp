@@ -106,10 +106,9 @@ class TelegramBot {
     await _send(
       chatId,
       "Salom${name.isNotEmpty ? ', <b>${_escape(name)}</b>' : ''}! 👋\n\n"
-      "<b>Oyinim</b> — do'stlar bilan onlayn o'yinlar:\n"
-      "✖ X-O  ♟ Shashka  ❓ Viktorina\n"
-      "❗ Ha/Yo'q  🔤 So'z topish  # Harflar\n\n"
-      "Pastdagi tugmani bosing va do'stingizni chaqiring 👇",
+      "Zerikdingizmi? 😏\n"
+      "Do'stlaringiz bilan birga o'ynash uchun to'g'ri joydasiz 🎮\n\n"
+      "Pastdagi tugmani bosing 👇",
     );
   }
 
