@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'battleship_game.dart';
 import 'battleship_placement.dart';
+import 'sea_art.dart';
+import '../../ui/game_art.dart';
+import '../../ui/kit.dart';
 
 /// Dengiz jangi: bitta telefonda ikki kishi.
 /// Navbat almashganda telefon uzatiladi — raqib kemalarni ko'rmasligi uchun
@@ -27,6 +30,12 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
 
   /// Oxirgi otish natijasi (ekranda ko'rsatish uchun).
   String? _lastShot;
+  ShotResult? _lastResult;
+
+  /// Otish effekti: katak, tekdimi, tartib raqami.
+  int? _fxCell;
+  bool _fxHit = false;
+  int _fxId = 0;
 
   static String _name(int p) => '${p + 1}-o\'yinchi';
 
@@ -35,6 +44,8 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
         _covered = false;
         _awaitingPass = false;
         _lastShot = null;
+        _lastResult = null;
+        _fxCell = null;
       });
 
   // ---------------------------------------------------------------- joylashtirish
@@ -58,6 +69,10 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
         ShotResult.repeat => '',
       }}';
       if (result == ShotResult.miss) _awaitingPass = true;
+      _lastResult = result;
+      _fxCell = cell;
+      _fxHit = result != ShotResult.miss;
+      _fxId++;
     });
   }
 
@@ -83,35 +98,58 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
     } else {
       body = _buildBattle();
     }
-    return Scaffold(
-      appBar: AppBar(title: const Text('Dengiz jangi')),
-      body: SafeArea(child: body),
+    return GameScaffold(
+      title: 'Dengiz jangi',
+      palette: GamePalette.sea,
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: KeyedSubtree(
+          key: ValueKey('${_game.phase}-$_covered-$_viewer'),
+          child: body,
+        ),
+      ),
     );
   }
 
   Widget _buildCover() {
     final next = _game.current;
-    final what = _game.phase == Phase.placing
-        ? 'kemalarini joylashtiradi'
-        : 'otadi';
+    final what = _game.phase == Phase.placing ? 'kemalarini joylashtiradi' : 'otadi';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.phone_android, size: 48),
-            const SizedBox(height: 16),
-            Text('Telefonni ${_name(next)}ga bering',
-                style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center),
+            SizedBox(
+              width: 180,
+              height: 180,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(seconds: 2),
+                builder: (_, t, _) =>
+                    CustomPaint(painter: GameArtPainter(GameArt.battleship, t)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            GlowText('Telefonni ${_name(next)}ga bering',
+                size: 24, color: const Color(0xFF9BE7FF)),
             const SizedBox(height: 8),
-            Text('${_name(next)} $what'),
-            const SizedBox(height: 24),
-            FilledButton(
+            Text('${_name(next)} $what. Raqib qaramasin!',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 15)),
+            if (_game.round > 1 || _game.score.any((x) => x > 0)) ...[
+              const SizedBox(height: 8),
+              Text('Hisob ${_game.score[0]} : ${_game.score[1]}',
+                  style: const TextStyle(color: Colors.white54)),
+            ],
+            const SizedBox(height: 28),
+            GameButton(
               key: const ValueKey('open'),
+              label: 'Men ${_name(next)}man',
+              icon: Icons.visibility_rounded,
+              colors: const [Color(0xFF4FD1FF), Color(0xFF1565C0)],
+              expand: false,
               onPressed: _open,
-              child: Text('Men ${_name(next)}man'),
             ),
           ],
         ),
@@ -126,73 +164,154 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
         onReady: _donePlacing,
       );
 
-  /// Raqib taxtasi: men otgan joylar.
-  Color? _targetColor(int i, int shooter) {
+  /// Raqib taxtasi: men otgan joylar. Kema shakli faqat portlaganda ochiladi.
+  (CellView, ShipSeg?) _targetCell(int i, int shooter) {
     final fired = _game.shots[shooter];
     final enemy = _game.fleets[1 - shooter];
     if (fired.contains(i)) {
       final ship = enemy.shipAt(i);
-      if (ship == null) return Colors.blueGrey.shade700;
+      if (ship == null) return (CellView.miss, null);
       return ship.cells.every(fired.contains)
-          ? Colors.red.shade900
-          : Colors.red.shade400;
+          ? (CellView.sunk, ShipSeg.of(enemy, i))
+          : (CellView.hit, null);
     }
-    if (_game.autoMarked[shooter].contains(i)) return Colors.blueGrey.shade800;
-    return null;
-  }
-
-  String _targetMark(int i, int shooter) {
-    if (_game.shots[shooter].contains(i)) {
-      return _game.fleets[1 - shooter].shipAt(i) != null ? '✕' : '•';
-    }
-    return _game.autoMarked[shooter].contains(i) ? '·' : '';
+    if (_game.autoMarked[shooter].contains(i)) return (CellView.mark, null);
+    return (CellView.water, null);
   }
 
   /// O'z taxtam: kemalarim va raqib otgan joylar.
-  Color? _ownColor(int i, int owner) {
-    final ship = _game.fleets[owner].shipAt(i);
-    final hit = _game.shots[1 - owner].contains(i);
-    if (ship != null) return hit ? Colors.red.shade400 : Colors.blueGrey.shade400;
-    return hit ? Colors.blueGrey.shade700 : null;
+  (CellView, ShipSeg?) _ownCell(int i, int owner) {
+    final fleet = _game.fleets[owner];
+    final seg = ShipSeg.of(fleet, i);
+    final enemyShots = _game.shots[1 - owner];
+    if (seg != null) {
+      final ship = fleet.shipAt(i)!;
+      if (ship.cells.every(enemyShots.contains)) return (CellView.sunk, seg);
+      return (enemyShots.contains(i) ? CellView.hit : CellView.ship, seg);
+    }
+    return (enemyShots.contains(i) ? CellView.miss : CellView.water, null);
+  }
+
+  Widget _fleetIcons(int player) {
+    final alive = _game.shipsAlive(player);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var k = 0; k < kFleet.length; k++)
+          Container(
+            width: 6,
+            height: 12,
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(3),
+              color: k < alive ? const Color(0xFF9BD8FF) : Colors.white12,
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildBattle() {
     final me = _viewer;
-    final text = Theme.of(context).textTheme;
+    final (bannerColor, bannerIcon) = switch (_lastResult) {
+      ShotResult.hit => (const Color(0xFFFF7043), Icons.local_fire_department_rounded),
+      ShotResult.sunk => (const Color(0xFFFFB300), Icons.whatshot_rounded),
+      ShotResult.miss => (const Color(0xFF4FD1FF), Icons.water_drop_rounded),
+      _ => (Colors.white54, Icons.gps_fixed_rounded),
+    };
 
     return ListView(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
       children: [
-        Text('${_name(me)} otadi', style: text.titleMedium),
-        Text('Raqibda qolgan kemalar: ${_game.shipsAlive(1 - me)}  •  '
-            'sizda: ${_game.shipsAlive(me)}'),
-        const SizedBox(height: 8),
-        Text(_lastShot ?? 'Raqib taxtasidan katak tanlang',
-            style: text.titleLarge),
-        const SizedBox(height: 8),
-        _Grid(
-          keyPrefix: 'target',
-          cellColor: (i) => _targetColor(i, me),
-          cellText: (i) => _targetMark(i, me),
-          onTap: _awaitingPass ? null : _fire,
+        Row(
+          children: [
+            Flexible(
+              child: PlayerBadge(
+                color: const Color(0xFF4FD1FF),
+                name: '${_name(me)} otadi',
+                active: true,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Text('Raqib kemalari',
+                    style: TextStyle(color: Colors.white60, fontSize: 11)),
+                const SizedBox(height: 3),
+                _fleetIcons(1 - me),
+              ],
+            ),
+          ],
         ),
         const SizedBox(height: 12),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+          child: Row(
+            key: ValueKey(_lastShot),
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(bannerIcon, color: bannerColor, size: 26),
+              const SizedBox(width: 8),
+              Flexible(
+                child: GlowText(_lastShot ?? 'Raqib taxtasidan katak tanlang',
+                    size: _lastShot == null ? 17 : 24, color: bannerColor),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SeaGrid(
+          keyPrefix: 'target',
+          cell: (i) => _targetCell(i, me),
+          onTap: _awaitingPass ? null : _fire,
+          effectCell: _fxCell,
+          effectHit: _fxHit,
+          effectId: _fxId,
+        ),
+        const SizedBox(height: 14),
         if (_awaitingPass)
-          FilledButton(
+          GameButton(
             key: const ValueKey('pass'),
+            label: "Navbatni o'tkazish",
+            icon: Icons.swap_horiz_rounded,
+            colors: const [Color(0xFF4FD1FF), Color(0xFF1565C0)],
             onPressed: _pass,
-            child: const Text("Navbatni o'tkazish"),
           ),
         const SizedBox(height: 16),
-        Text('Sizning kemalaringiz', style: text.titleSmall),
-        const SizedBox(height: 8),
-        FractionallySizedBox(
-          widthFactor: 0.6,
-          child: _Grid(
-            keyPrefix: 'own',
-            small: true,
-            cellColor: (i) => _ownColor(i, me),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 5,
+              child: SeaGrid(
+                keyPrefix: 'own',
+                small: true,
+                cell: (i) => _ownCell(i, me),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 4,
+              child: Glass(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Sizning flotingiz',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    _fleetIcons(me),
+                    const SizedBox(height: 10),
+                    Text('Hisob: ${_game.score[0]} : ${_game.score[1]}',
+                        style: const TextStyle(color: Colors.white70)),
+                    Text('${_game.round}-raund',
+                        style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -200,86 +319,45 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
 
   Widget _buildFinished() {
     final w = _game.winner!;
-    final text = Theme.of(context).textTheme;
-    return ListView(
-      padding: const EdgeInsets.all(12),
+    return Stack(
       children: [
-        Text('${_name(w)} yutdi!', style: text.headlineSmall),
-        Text('Hisob: ${_game.score[0]} : ${_game.score[1]}  •  ${_game.round}-raund'),
-        const SizedBox(height: 12),
-        for (final p in [0, 1]) ...[
-          Text('${_name(p)} kemalari', style: text.titleSmall),
-          const SizedBox(height: 4),
-          FractionallySizedBox(
-            widthFactor: 0.7,
-            child: _Grid(
-              keyPrefix: 'final$p',
-              small: true,
-              cellColor: (i) => _ownColor(i, p),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        FilledButton(onPressed: _newRound, child: const Text("Yana o'ynash")),
-      ],
-    );
-  }
-}
-
-/// 9×9 taxta, ustida a–i, chap tomonda 1–9.
-class _Grid extends StatelessWidget {
-  final String keyPrefix;
-  final Color? Function(int i) cellColor;
-  final String Function(int i)? cellText;
-  final void Function(int i)? onTap;
-  final bool small;
-
-  const _Grid({
-    required this.keyPrefix,
-    required this.cellColor,
-    this.cellText,
-    this.onTap,
-    this.small = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final labelStyle = TextStyle(fontSize: small ? 9 : 12, color: scheme.outline);
-
-    return AspectRatio(
-      aspectRatio: 1,
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: kBoardSize + 1,
-          crossAxisSpacing: 1,
-          mainAxisSpacing: 1,
-        ),
-        itemCount: (kBoardSize + 1) * (kBoardSize + 1),
-        itemBuilder: (context, k) {
-          final row = k ~/ (kBoardSize + 1), col = k % (kBoardSize + 1);
-          if (row == 0 && col == 0) return const SizedBox();
-          if (row == 0) {
-            return Center(child: Text('abcdefghi'[col - 1], style: labelStyle));
-          }
-          if (col == 0) return Center(child: Text('$row', style: labelStyle));
-
-          final i = (row - 1) * kBoardSize + (col - 1);
-          return Material(
-            color: cellColor(i) ?? scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(small ? 1 : 3),
-            child: InkWell(
-              key: ValueKey('$keyPrefix-$i'),
-              onTap: onTap == null ? null : () => onTap!(i),
-              child: Center(
-                child: Text(cellText?.call(i) ?? '',
-                    style: TextStyle(fontSize: small ? 8 : 14)),
+        ListView(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
+          children: [
+            for (final p in [0, 1]) ...[
+              Text('${_name(p)} kemalari',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              FractionallySizedBox(
+                widthFactor: 0.75,
+                child: SeaGrid(keyPrefix: 'final$p', small: true, cell: (i) => _ownCell(i, p)),
               ),
-            ),
-          );
-        },
-      ),
+              const SizedBox(height: 14),
+            ],
+          ],
+        ),
+        Positioned.fill(
+          child: WinOverlay(
+            title: '${_name(w)} yutdi!',
+            subtitle: 'Hisob ${_game.score[0]} : ${_game.score[1]}  •  ${_game.round}-raund',
+            color: const Color(0xFF4FD1FF),
+            actions: [
+              GameButton(
+                label: "Yana o'ynash",
+                icon: Icons.replay_rounded,
+                colors: const [Color(0xFF4FD1FF), Color(0xFF1565C0)],
+                onPressed: _newRound,
+              ),
+              GameButton(
+                label: 'Bosh menyu',
+                outlined: true,
+                colors: const [Colors.white70, Colors.white70],
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -323,12 +323,16 @@ class PlayerBadge extends StatelessWidget {
                   ),
                 ),
             const SizedBox(width: 8),
-            Text(name,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                  decoration: dimmed ? TextDecoration.lineThrough : null,
-                )),
+            Flexible(
+              child: Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                    decoration: dimmed ? TextDecoration.lineThrough : null,
+                  )),
+            ),
             if (value != null) ...[
               const SizedBox(width: 8),
               Container(

@@ -160,27 +160,27 @@ void main() {
     // 1-o'yinchi
     expect(find.text("Telefonni 1-o'yinchiga bering"), findsOneWidget);
     await t.tap(find.byKey(const ValueKey('open')));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
     await t.tap(find.text('Tasodifiy'));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
     await t.tap(find.byKey(const ValueKey('ready')));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
 
     // 2-o'yinchi
     expect(find.text("Telefonni 2-o'yinchiga bering"), findsOneWidget);
     await t.tap(find.byKey(const ValueKey('open')));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
     await t.tap(find.text('Tasodifiy'));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
     await t.tap(find.byKey(const ValueKey('ready')));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
 
     // Jang: 1-o'yinchi otadi
     await t.tap(find.byKey(const ValueKey('open')));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
     expect(find.text("1-o'yinchi otadi"), findsOneWidget);
     await t.tap(find.byKey(const ValueKey('target-0')));
-    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
     expect(find.textContaining('a1 — '), findsOneWidget);
   });
 

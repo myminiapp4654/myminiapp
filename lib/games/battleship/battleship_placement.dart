@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'battleship_game.dart';
+import 'sea_art.dart';
+import '../../ui/kit.dart';
 
 /// Sudralayotgan kema.
 class _Drag {
@@ -146,9 +148,13 @@ class _BattleshipPlacementState extends State<BattleshipPlacement> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
           children: [
-            Text(widget.title, style: text.titleMedium),
+            Text(widget.title,
+                style: text.titleMedium?.copyWith(
+                    color: Colors.white, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 2),
             const Text("Kemani sudrab taxtaga qo'ying. Bossangiz — buriladi.",
-                textAlign: TextAlign.center),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white60, fontSize: 13)),
             const SizedBox(height: 8),
             Center(child: _buildBoard(cs)),
             const SizedBox(height: 10),
@@ -162,9 +168,9 @@ class _BattleshipPlacementState extends State<BattleshipPlacement> {
   }
 
   Widget _buildBoard(double cs) {
-    final scheme = Theme.of(context).colorScheme;
     final preview = _previewCells;
-    final labelStyle = TextStyle(fontSize: cs * 0.38, color: scheme.outline);
+    final labelStyle = TextStyle(
+        fontSize: cs * 0.38, fontWeight: FontWeight.w800, color: const Color(0xFF9BD8FF));
 
     return DragTarget<_Drag>(
       onWillAcceptWithDetails: (_) => true,
@@ -177,10 +183,20 @@ class _BattleshipPlacementState extends State<BattleshipPlacement> {
         }
         _clearHover();
       },
-      builder: (context, _, _) => SizedBox(
+      builder: (context, _, _) => Container(
         key: _boardKey,
         width: cs * (kBoardSize + 1),
         height: cs * (kBoardSize + 1),
+        decoration: BoxDecoration(
+          color: const Color(0xFF062646),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 8))],
+        ),
+        // Hoshiya ustidan chiziladi — kataklar joyini egallamaydi
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF4FD1FF).withValues(alpha: 0.35)),
+        ),
         child: Column(
           children: [
             Row(children: [
@@ -209,29 +225,17 @@ class _BattleshipPlacementState extends State<BattleshipPlacement> {
   }
 
   Widget _buildCell(int i, double cs, Set<int> preview) {
-    final scheme = Theme.of(context).colorScheme;
     final ship = _fleet.shipAt(i);
-
-    Color color = scheme.surfaceContainerHighest;
-    if (ship != null) {
-      color = ship == _lifted
-          ? scheme.primary.withValues(alpha: 0.3)
-          : scheme.primary;
-    }
-    if (preview.contains(i)) {
-      color = _hoverValid
-          ? Colors.green.withValues(alpha: 0.7)
-          : Colors.red.withValues(alpha: 0.6);
-    }
-
-    final cell = Container(
+    final seg = ShipSeg.of(_fleet, i);
+    final cell = SizedBox(
       width: cs,
       height: cs,
-      padding: const EdgeInsets.all(1),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(3),
+      child: CustomPaint(
+        painter: SeaCellPainter(
+          seg != null ? CellView.ship : CellView.water,
+          seg: seg,
+          faded: ship != null && ship == _lifted,
+          preview: preview.contains(i) ? _hoverValid : null,
         ),
       ),
     );
@@ -258,29 +262,28 @@ class _BattleshipPlacementState extends State<BattleshipPlacement> {
 
   Widget _buildPort(double cs) {
     final remaining = _fleet.remaining;
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        border: Border.all(color: scheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return Glass(
+      tint: const Color(0xFF4FD1FF),
+      padding: const EdgeInsets.all(10),
       child: Column(
         children: [
           Row(
             children: [
+              const Icon(Icons.anchor_rounded, color: Color(0xFF9BD8FF), size: 18),
+              const SizedBox(width: 6),
               Expanded(
-                child: Text(remaining.isEmpty
-                    ? 'Hamma kemalar joyida!'
-                    : 'Port: ${remaining.length} ta kema'),
+                child: Text(
+                    remaining.isEmpty
+                        ? 'Hamma kemalar joyida!'
+                        : 'Port: ${remaining.length} ta kema',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
               ),
               TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF9BD8FF)),
                 onPressed: remaining.isEmpty
                     ? null
                     : () => setState(() => _horizontal = !_horizontal),
-                icon: const Icon(Icons.rotate_90_degrees_ccw),
+                icon: const Icon(Icons.rotate_90_degrees_ccw_rounded),
                 label: Text(_horizontal ? 'Gorizontal' : 'Vertikal'),
               ),
             ],
@@ -323,31 +326,40 @@ class _BattleshipPlacementState extends State<BattleshipPlacement> {
   }
 
   Widget _buildButtons() {
+    const sea = [Color(0xFF4FD1FF), Color(0xFF1565C0)];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
             Expanded(
-              child: OutlinedButton(
+              child: GameButton(
+                label: 'Tasodifiy',
+                icon: Icons.shuffle_rounded,
+                outlined: true,
+                colors: sea,
                 onPressed: () => setState(_fleet.randomize),
-                child: const Text('Tasodifiy'),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: OutlinedButton(
+              child: GameButton(
+                label: 'Tozalash',
+                icon: Icons.delete_sweep_rounded,
+                outlined: true,
+                colors: sea,
                 onPressed: () => setState(_fleet.clear),
-                child: const Text('Tozalash'),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        FilledButton(
+        const SizedBox(height: 10),
+        GameButton(
           key: const ValueKey('ready'),
+          label: 'Tayyor',
+          icon: Icons.check_rounded,
+          colors: sea,
           onPressed: _fleet.complete ? widget.onReady : null,
-          child: const Text('Tayyor'),
         ),
       ],
     );
@@ -370,26 +382,25 @@ class _ShipShape extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final cells = [
       for (var k = 0; k < length; k++)
-        Container(
+        SizedBox(
           width: cs,
           height: cs,
-          padding: const EdgeInsets.all(1),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: scheme.primary.withValues(alpha: floating ? 0.85 : 1),
-              borderRadius: BorderRadius.circular(3),
-            ),
+          child: CustomPaint(
+            painter: SeaCellPainter(CellView.ship,
+                seg: ShipSeg(k, length, horizontal), water: false),
           ),
         ),
     ];
     return Material(
       color: Colors.transparent,
-      child: horizontal
-          ? Row(mainAxisSize: MainAxisSize.min, children: cells)
-          : Column(mainAxisSize: MainAxisSize.min, children: cells),
+      child: Opacity(
+        opacity: floating ? 0.9 : 1,
+        child: horizontal
+            ? Row(mainAxisSize: MainAxisSize.min, children: cells)
+            : Column(mainAxisSize: MainAxisSize.min, children: cells),
+      ),
     );
   }
 }

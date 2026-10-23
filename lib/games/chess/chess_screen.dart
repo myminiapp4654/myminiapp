@@ -1,12 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../telegram/telegram.dart';
+import '../../ui/kit.dart';
 import 'chess_game.dart';
-
-const _glyphs = {
-  'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟',
-};
+import 'chess_pieces.dart';
 
 /// Sozlamalar: 2 kishi yoki kompyuterga qarshi.
 Future<({bool vsAi, String humanColor, int level})?> showChessSetup(
@@ -75,20 +75,30 @@ class ChessScreen extends StatefulWidget {
   final String humanColor;
   final int level;
 
-  const ChessScreen(
-      {super.key, this.vsAi = false, this.humanColor = 'w', this.level = 2});
+  /// Tayyor pozitsiya (test va ekran rasmlari uchun).
+  final ChessGame? initialGame;
+
+  const ChessScreen({
+    super.key,
+    this.vsAi = false,
+    this.humanColor = 'w',
+    this.level = 2,
+    this.initialGame,
+  });
 
   @override
   State<ChessScreen> createState() => _ChessScreenState();
 }
 
 class _ChessScreenState extends State<ChessScreen> {
-  var _game = ChessGame();
+  late ChessGame _game = widget.initialGame ?? ChessGame();
   int? _selected;
   bool _thinking = false;
   late bool _flipped = widget.vsAi && widget.humanColor == 'b';
 
   bool get _aiTurn => widget.vsAi && _game.turn != widget.humanColor;
+
+  static const _levelNames = {1: 'Oson', 2: "O'rta", 3: 'Qiyin'};
 
   @override
   void initState() {
@@ -149,10 +159,13 @@ class _ChessScreenState extends State<ChessScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               for (final p in ['q', 'r', 'b', 'n'])
-                IconButton(
-                  iconSize: 44,
-                  onPressed: () => Navigator.pop(ctx, p),
-                  icon: _PieceGlyph(piece: white ? p.toUpperCase() : p, size: 40),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => Navigator.pop(ctx, p),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: ChessPiece(piece: white ? p.toUpperCase() : p, size: 56),
+                  ),
                 ),
             ],
           ),
@@ -194,75 +207,209 @@ class _ChessScreenState extends State<ChessScreen> {
     };
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final moves = _game.san;
+  /// Material ustunligi (oq tomonidan).
+  int _material() {
+    const v = {'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0};
+    var s = 0;
+    for (final p in _game.board) {
+      if (p.isEmpty) continue;
+      s += (isWhitePiece(p) ? 1 : -1) * v[p.toLowerCase()]!;
+    }
+    return s;
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Shaxmat'),
-        actions: [
-          IconButton(
-              tooltip: 'Yurishni qaytarish',
-              icon: const Icon(Icons.undo),
-              onPressed: _game.canUndo && !_thinking ? _undo : null),
-          IconButton(
-              tooltip: 'Taxtani aylantirish',
-              icon: const Icon(Icons.screen_rotation_alt),
-              onPressed: () => setState(() => _flipped = !_flipped)),
-          IconButton(
-              tooltip: 'Qaytadan',
-              icon: const Icon(Icons.refresh),
-              onPressed: _restart),
+  String _playerName(String color) {
+    if (widget.vsAi && color != widget.humanColor) {
+      return 'Kompyuter (${_levelNames[widget.level]})';
+    }
+    if (widget.vsAi) return 'Siz';
+    return color == 'w' ? 'Oq' : 'Qora';
+  }
+
+  Widget _playerBar(String color) {
+    final active = _game.turn == color && _game.result == ChessResult.playing;
+    // Shu tomon urib olgan donalar — raqib donalari
+    final captured = _game.capturedPieces(color == 'w' ? 'b' : 'w');
+    final adv = _material() * (color == 'w' ? 1 : -1);
+    final isAi = widget.vsAi && color != widget.humanColor;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: active ? Colors.white.withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.04),
+        border: Border.all(
+          color: active ? const Color(0xFFE8C07A) : Colors.white12,
+          width: active ? 1.6 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: color == 'w' ? const Color(0xFFF1EDE6) : const Color(0xFF2E2E2E),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Center(
+              child: isAi
+                  ? const Icon(Icons.smart_toy_rounded, size: 22, color: Color(0xFFE8C07A))
+                  : ChessPiece(piece: color == 'w' ? 'K' : 'k', size: 30),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_playerName(color),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: active ? FontWeight.w800 : FontWeight.w600)),
+                SizedBox(
+                  height: 18,
+                  child: Row(
+                    children: [
+                      for (final p in captured)
+                        Align(widthFactor: 0.62, child: ChessPiece(piece: p, size: 18)),
+                      if (adv > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Text('+$adv',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (active && _thinking && isAi)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFE8C07A)),
+            ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _Captured(pieces: _game.capturedPieces(_flipped ? 'b' : 'w')),
-            Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: AspectRatio(aspectRatio: 1, child: _buildBoard()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final moves = _game.san;
+    final top = _flipped ? 'w' : 'b';
+    final bottom = _flipped ? 'b' : 'w';
+    final result = _game.result;
+    final check = _game.inCheck() && result == ChessResult.playing;
+
+    return GameScaffold(
+      title: 'Shaxmat',
+      palette: GamePalette.chess,
+      actions: [
+        IconButton(
+            tooltip: 'Yurishni qaytarish',
+            icon: const Icon(Icons.undo_rounded),
+            onPressed: _game.canUndo && !_thinking ? _undo : null),
+        IconButton(
+            tooltip: 'Taxtani aylantirish',
+            icon: const Icon(Icons.screen_rotation_alt_rounded),
+            onPressed: () => setState(() => _flipped = !_flipped)),
+        IconButton(
+            tooltip: 'Qaytadan',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _restart),
+      ],
+      body: Stack(
+        children: [
+          LayoutBuilder(builder: (context, box) {
+            final board = min(box.maxWidth - 12, box.maxHeight - 200);
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _playerBar(top),
+                const SizedBox(height: 8),
+                SizedBox(width: board, height: board, child: _buildBoard()),
+                const SizedBox(height: 8),
+                _playerBar(bottom),
+                const SizedBox(height: 10),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Container(
+                    key: ValueKey(_status()),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: check
+                          ? Colors.red.withValues(alpha: 0.35)
+                          : Colors.black.withValues(alpha: 0.3),
+                    ),
+                    child: Text(_status(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: check ? FontWeight.w900 : FontWeight.w700,
+                        )),
+                  ),
                 ),
-              ),
-            ),
-            _Captured(pieces: _game.capturedPieces(_flipped ? 'w' : 'b')),
-            const SizedBox(height: 4),
-            Text(_status(), style: text.titleMedium),
-            const SizedBox(height: 6),
-            // Yurishlar tarixi
-            SizedBox(
-              height: 32,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                reverse: true,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                children: [
-                  Text([
-                    for (var i = 0; i < moves.length; i += 2)
-                      '${i ~/ 2 + 1}. ${moves[i]}${i + 1 < moves.length ? ' ${moves[i + 1]}' : ''}',
-                  ].join('   ')),
+                const SizedBox(height: 8),
+                // Yurishlar tarixi
+                SizedBox(
+                  height: 26,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    children: [
+                      Center(
+                        child: Text(
+                          [
+                            for (var i = 0; i < moves.length; i += 2)
+                              '${i ~/ 2 + 1}. ${moves[i]}${i + 1 < moves.length ? ' ${moves[i + 1]}' : ''}',
+                          ].join('   '),
+                          style: const TextStyle(color: Colors.white60, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }),
+          if (result != ChessResult.playing)
+            Positioned.fill(
+              child: WinOverlay(
+                title: result == ChessResult.checkmate ? 'Mat!' : 'Durang',
+                subtitle: _status(),
+                confetti: result == ChessResult.checkmate,
+                color: const Color(0xFFE8C07A),
+                actions: [
+                  GameButton(
+                    label: "Yana o'ynash",
+                    icon: Icons.replay_rounded,
+                    colors: const [Color(0xFFE8C07A), Color(0xFFB07A3A)],
+                    onPressed: _restart,
+                  ),
+                  GameButton(
+                    label: 'Bosh menyu',
+                    outlined: true,
+                    colors: const [Colors.white70, Colors.white70],
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ],
               ),
             ),
-            if (_game.result != ChessResult.playing)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: FilledButton(
-                    onPressed: _restart, child: const Text("Yana o'ynash")),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildBoard() {
     final g = _game;
-    final scheme = Theme.of(context).colorScheme;
     final targets = _selected == null
         ? const <int>{}
         : {
@@ -272,119 +419,123 @@ class _ChessScreenState extends State<ChessScreen> {
     final last = g.lastMove;
     final checkSq = g.inCheck() ? g.kingSquare(g.turn) : -1;
 
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate:
-          const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 8),
-      itemCount: 64,
-      itemBuilder: (context, k) {
-        final sq = _flipped ? 63 - k : k;
-        final r = sq ~/ 8, c = sq % 8;
-        final light = (r + c).isEven;
-        Color bg = light ? const Color(0xFFEEDDBB) : const Color(0xFFB58863);
-        if (last != null && (sq == last.from || sq == last.to)) {
-          bg = Color.lerp(bg, Colors.yellow, 0.4)!;
-        }
-        if (sq == _selected) bg = scheme.primary.withValues(alpha: 0.7);
-        if (sq == checkSq) bg = Colors.red.shade400;
-
-        final piece = g.board[sq];
-        final isTarget = targets.contains(sq);
-        final coordStyle = TextStyle(
-            fontSize: 9,
-            color: light ? const Color(0xFFB58863) : const Color(0xFFEEDDBB));
-
-        return GestureDetector(
-          key: ValueKey('sq-${squareName(sq)}'),
-          onTap: () => _tap(sq),
-          child: Container(
-            color: bg,
-            child: Stack(
-              children: [
-                if (k % 8 == 0)
-                  Positioned(left: 2, top: 1, child: Text('${8 - r}', style: coordStyle)),
-                if (k >= 56)
-                  Positioned(
-                      right: 2,
-                      bottom: 0,
-                      child: Text('abcdefgh'[c], style: coordStyle)),
-                if (piece.isNotEmpty)
-                  Center(
-                    child: LayoutBuilder(
-                      builder: (context, box) =>
-                          _PieceGlyph(piece: piece, size: box.maxWidth * 0.8),
-                    ),
-                  ),
-                if (isTarget)
-                  Center(
-                    child: Container(
-                      width: piece.isEmpty ? 14 : null,
-                      height: piece.isEmpty ? 14 : null,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: piece.isEmpty ? Colors.black26 : null,
-                        border: piece.isEmpty
-                            ? null
-                            : Border.all(color: Colors.black38, width: 4),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PieceGlyph extends StatelessWidget {
-  final String piece;
-  final double size;
-
-  const _PieceGlyph({required this.piece, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    final white = isWhitePiece(piece);
-    final glyph = _glyphs[piece.toLowerCase()]!;
-    // Bitta to'ldirilgan belgi: oq donaga oq rang + qora chiziq
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Text(glyph,
-            style: TextStyle(
-              fontSize: size,
-              height: 1,
-              foreground: Paint()
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = size * 0.06
-                ..color = white ? Colors.black : Colors.white54,
-            )),
-        Text(glyph,
-            style: TextStyle(
-              fontSize: size,
-              height: 1,
-              color: white ? Colors.white : Colors.black,
-            )),
-      ],
-    );
-  }
-}
-
-class _Captured extends StatelessWidget {
-  final List<String> pieces;
-  const _Captured({required this.pieces});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 26,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final p in pieces) _PieceGlyph(piece: p, size: 18),
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF6B4423), Color(0xFF3E2410), Color(0xFF5A3518)],
+        ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black87, blurRadius: 24, offset: Offset(0, 12)),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: LayoutBuilder(builder: (context, box) {
+          final s = box.maxWidth / 8;
+          Offset pos(int sq) {
+            final k = _flipped ? 63 - sq : sq;
+            return Offset((k % 8) * s, (k ~/ 8) * s);
+          }
+
+          final squares = <Widget>[];
+          for (var sq = 0; sq < 64; sq++) {
+            final r = sq ~/ 8, c = sq % 8;
+            final light = (r + c).isEven;
+            var bg = light ? const Color(0xFFF0D9B5) : const Color(0xFFB58863);
+            if (last != null && (sq == last.from || sq == last.to)) {
+              bg = Color.lerp(bg, const Color(0xFFF7EC5E), 0.55)!;
+            }
+            if (sq == _selected) bg = Color.lerp(bg, const Color(0xFF7FC97F), 0.7)!;
+            final p = pos(sq);
+            final k = _flipped ? 63 - sq : sq;
+            final coord = TextStyle(
+                fontSize: s * 0.2,
+                fontWeight: FontWeight.w800,
+                color: light ? const Color(0xFFB58863) : const Color(0xFFF0D9B5));
+            squares.add(Positioned(
+              left: p.dx,
+              top: p.dy,
+              width: s,
+              height: s,
+              child: GestureDetector(
+                key: ValueKey('sq-${squareName(sq)}'),
+                onTap: () => _tap(sq),
+                child: Container(
+                  color: bg,
+                  child: Stack(children: [
+                    if (k % 8 == 0)
+                      Positioned(left: 2, top: 1, child: Text('${8 - r}', style: coord)),
+                    if (k >= 56)
+                      Positioned(right: 2, bottom: 0, child: Text('abcdefgh'[c], style: coord)),
+                    if (sq == checkSq)
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(colors: [
+                              Colors.red.withValues(alpha: 0.95),
+                              Colors.red.withValues(alpha: 0),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    if (targets.contains(sq))
+                      Center(
+                        child: g.board[sq].isEmpty
+                            ? Container(
+                                width: s * 0.3,
+                                height: s * 0.3,
+                                decoration: const BoxDecoration(
+                                    shape: BoxShape.circle, color: Color(0x55000000)),
+                              )
+                            : Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: const Color(0x55000000), width: s * 0.08),
+                                ),
+                              ),
+                      ),
+                  ]),
+                ),
+              ),
+            ));
+          }
+
+          final pieces = <Widget>[];
+          for (var sq = 0; sq < 64; sq++) {
+            final piece = g.board[sq];
+            if (piece.isEmpty) continue;
+            final to = pos(sq);
+            final moved = last != null && last.to == sq;
+            final child = IgnorePointer(
+              child: AnimatedScale(
+                scale: sq == _selected ? 1.12 : 1,
+                duration: const Duration(milliseconds: 120),
+                child: ChessPiece(piece: piece, size: s),
+              ),
+            );
+            if (moved) {
+              // Oxirgi yurgan dona joyiga siljib boradi
+              final from = pos(last.from);
+              pieces.add(TweenAnimationBuilder<Offset>(
+                key: ValueKey('move-${g.san.length}'),
+                tween: Tween(begin: from, end: to),
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                builder: (_, o, child) => Positioned(
+                    left: o.dx, top: o.dy, width: s, height: s, child: child!),
+                child: child,
+              ));
+            } else {
+              pieces.add(Positioned(left: to.dx, top: to.dy, width: s, height: s, child: child));
+            }
+          }
+
+          return Stack(children: [...squares, ...pieces]);
+        }),
       ),
     );
   }
