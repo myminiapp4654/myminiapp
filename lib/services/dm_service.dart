@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 class DmService {
   final _db = FirebaseFirestore.instance;
@@ -33,10 +33,11 @@ class DmService {
     return chatId;
   }
 
-  Future<String> uploadImage(String chatId, File file) async {
+  Future<String> uploadImage(String chatId, XFile file) async {
     final name = '${myUid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final ref = FirebaseStorage.instance.ref('direct_messages/$chatId/$name');
-    await ref.putFile(file);
+    final bytes = await file.readAsBytes();
+    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
     return ref.getDownloadURL();
   }
 

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -98,7 +97,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       _replyTo = null;
     });
     try {
-      final url = await _service.uploadImage(widget.roomId, File(picked.path));
+      final url = await _service.uploadImage(widget.roomId, picked);
       await _service.sendMessage(widget.roomId, '', imageUrl: url, replyTo: reply);
       if (mounted) _scrollToBottom();
     } catch (e) {

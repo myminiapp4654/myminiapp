@@ -1,17 +1,33 @@
-# oyinim
+# Oyinim
 
-A new Flutter project.
+Do'stlar bilan onlayn o'ynash uchun Flutter + Firebase ilovasi: krestik-nolik, shashka, viktorina, Ha/Yo'q, so'z topish, so'z aralash, guruh va shaxsiy chatlar.
 
-## Getting Started
+Ilova ikki ko'rinishda ishlaydi, ikkalasi bitta Firebase bazasidan foydalanadi:
+- **Android ilova**
+- **Telegram Mini App** (Flutter web)
 
-This project is a starting point for a Flutter application.
+## Ishga tushirish
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+flutter run                 # Android
+flutter run -d chrome       # Veb (brauzerda)
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## Telegram Mini App
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1. **Firebase veb sozlamasi.** Firebase Console → Project settings → Your apps → Web app qo'shing. Bergan `apiKey` va `appId` ni [lib/firebase_options.dart](lib/firebase_options.dart) dagi `web` bo'limiga yozing.
+2. **Authorized domains.** Firebase Console → Authentication → Settings → Authorized domains bo'limida `online-game-9f0e5.web.app` borligini tekshiring. Anonymous kirish yoqilgan bo'lishi kerak.
+3. **Build va joylash:**
+   ```bash
+   flutter build web --release
+   firebase deploy --only hosting
+   ```
+   Manzil: `https://online-game-9f0e5.web.app`
+4. **Bot.** @BotFather'da:
+   - `/newbot`: bot yarating.
+   - `/newapp`: botni tanlang, URL sifatida hosting manzilini bering, qisqa nom (masalan `play`) kiriting.
+   - Bot username va qisqa nomni [lib/telegram/telegram_config.dart](lib/telegram/telegram_config.dart) ga yozing.
+5. **Do'stni chaqirish havolasi:** `https://t.me/<bot>/<app>?startapp=XONAKODI`. Do'st havolani bossa, to'g'ridan-to'g'ri xonaga kiradi.
+
+Telegram ichida login ekrani chiqmaydi: foydalanuvchi Telegram ismi bilan avtomatik kiritiladi.

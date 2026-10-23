@@ -11,6 +11,7 @@ import 'login_screen.dart';
 import 'room_screen.dart';
 import 'chat_rooms_list_screen.dart';
 import 'dm_list_screen.dart';
+import '../telegram/telegram.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +21,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // Telegram havolasidagi xona kodi faqat bir marta ishlatiladi
+  static bool _startParamUsed = false;
+
   final _authService = AuthService();
   final _roomService = RoomService();
   final _user = FirebaseAuth.instance.currentUser!;
@@ -33,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _authService.syncDisplayName().catchError((_) {});
+    _joinFromTelegramLink();
     _userFuture = FirebaseFirestore.instance
         .collection('users')
         .doc(_user.uid)
@@ -74,6 +79,19 @@ class _HomeScreenState extends State<HomeScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// t.me/bot/app?startapp=KOD havolasi orqali kelganda xonaga avtomatik kiradi.
+  void _joinFromTelegramLink() {
+    if (_startParamUsed) return;
+    final code = Telegram.startParam?.trim().toUpperCase();
+    if (code == null || code.length != 6) return;
+    _startParamUsed = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _codeController.text = code;
+      _joinGameRoom();
+    });
   }
 
   Future<void> _joinGameRoom() async {

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
@@ -95,7 +94,7 @@ class _DmScreenState extends State<DmScreen> {
       _replyTo = null;
     });
     try {
-      final url = await _service.uploadImage(widget.chatId, File(picked.path));
+      final url = await _service.uploadImage(widget.chatId, picked);
       await _service.sendMessage(widget.chatId, '', imageUrl: url, replyTo: reply);
       if (mounted) _scrollToBottom();
     } catch (e) {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,6 +12,12 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   Future<User?> signInWithGoogle() async {
+    if (kIsWeb) {
+      // Vebda google_sign_in o'rniga Firebase'ning o'z oynasi ishlatiladi.
+      final result = await _auth.signInWithPopup(GoogleAuthProvider());
+      await _saveUserToFirestore(result.user!);
+      return result.user;
+    }
     final googleUser = await _googleSignIn.signIn();
     if (googleUser == null) return null;
 
@@ -31,6 +38,24 @@ class AuthService {
     await result.user!.reload();
     await _saveUserToFirestore(result.user!, name: name, age: age);
     return _auth.currentUser;
+  }
+
+  /// Telegram Mini App ichida: foydalanuvchini Telegram ismi bilan kiritadi.
+  /// Eslatma: bu mehmon (anonymous) akkaunt, Telegram ID faqat ma'lumot uchun saqlanadi.
+  Future<User?> signInWithTelegram({
+    required int telegramId,
+    required String name,
+    String? username,
+  }) async {
+    final user = await signInAnonymously(name, 0);
+    if (user != null) {
+      await _db.collection('users').doc(user.uid).set({
+        'telegramId': telegramId,
+        'telegramUsername': username,
+        'platform': 'telegram',
+      }, SetOptions(merge: true));
+    }
+    return user;
   }
 
   /// Ism o'zgarganda Firestore va Firebase Auth'dagi ismni birga yangilaydi.

@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ChatRoomService {
   final _db = FirebaseFirestore.instance;
@@ -64,10 +64,11 @@ class ChatRoomService {
     return null;
   }
 
-  Future<String> uploadImage(String roomId, File file) async {
+  Future<String> uploadImage(String roomId, XFile file) async {
     final name = '${myUid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final ref = FirebaseStorage.instance.ref('chat_rooms/$roomId/$name');
-    await ref.putFile(file);
+    final bytes = await file.readAsBytes();
+    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
     return ref.getDownloadURL();
   }
 

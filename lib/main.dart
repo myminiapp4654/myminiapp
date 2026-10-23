@@ -6,11 +6,15 @@ import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'widgets/connectivity_wrapper.dart';
 import 'services/audio_service.dart';
+import 'services/auth_service.dart';
+import 'telegram/telegram.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AudioService.instance.init();
+  Telegram.init();
+  await _telegramAutoLogin();
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return MaterialApp(
       home: Scaffold(
@@ -37,6 +41,25 @@ void main() async {
     );
   };
   runApp(const MyApp());
+}
+
+/// Telegram ichida ochilsa, login ekranini ko'rsatmasdan
+/// foydalanuvchini Telegram ismi bilan avtomatik kiritadi.
+Future<void> _telegramAutoLogin() async {
+  final tgUser = Telegram.user;
+  if (tgUser == null) return;
+  try {
+    // Vebda saqlangan sessiya tiklanishini kutamiz
+    final existing = await FirebaseAuth.instance.authStateChanges().first;
+    if (existing != null) return;
+    await AuthService().signInWithTelegram(
+      telegramId: tgUser.id,
+      name: tgUser.fullName,
+      username: tgUser.username,
+    );
+  } catch (_) {
+    // Xato bo'lsa oddiy login ekrani ochiladi
+  }
 }
 
 class MyApp extends StatelessWidget {

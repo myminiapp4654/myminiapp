@@ -9,6 +9,8 @@ import '../services/ha_yoq_service.dart';
 import '../services/word_puzzle_service.dart';
 import '../services/scrambled_word_service.dart';
 import '../theme/pixel_ui.dart';
+import '../telegram/telegram.dart';
+import '../telegram/telegram_config.dart';
 import 'tictactoe_screen.dart';
 import 'checkers_screen.dart';
 import 'quiz_screen.dart';
@@ -107,6 +109,14 @@ class _RoomScreenState extends State<RoomScreen> {
               ],
             ),
             centerTitle: true,
+            actions: [
+              if (Telegram.isAvailable)
+                IconButton(
+                  tooltip: "Do'stni chaqirish",
+                  icon: const Icon(Icons.send, color: kAccent),
+                  onPressed: _inviteViaTelegram,
+                ),
+            ],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(2),
               child: Container(height: 2, color: kAccent.withValues(alpha: 0.4)),
@@ -525,6 +535,17 @@ class _RoomScreenState extends State<RoomScreen> {
         break;
     }
     await _roomService.acceptInvite(widget.roomCode);
+  }
+
+  /// Telegram'da do'st tanlash oynasini ochadi; do'st havolani bossa
+  /// to'g'ridan-to'g'ri shu xonaga tushadi.
+  void _inviteViaTelegram() {
+    Telegram.haptic();
+    final link = telegramRoomLink(widget.roomCode);
+    const text = "Keling, Oyinim'da birga o'ynaymiz! 🎮";
+    Telegram.openLink('https://t.me/share/url'
+        '?url=${Uri.encodeComponent(link)}'
+        '&text=${Uri.encodeComponent(text)}');
   }
 
   Future<void> _navigateToGame(Map invite, bool amIHost) async {
