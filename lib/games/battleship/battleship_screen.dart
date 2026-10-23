@@ -115,7 +115,7 @@ class _BattleshipScreenState extends State<BattleshipScreen> {
     final next = _game.current;
     final what = _game.phase == Phase.placing ? 'kemalarini joylashtiradi' : 'otadi';
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,

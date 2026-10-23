@@ -346,13 +346,18 @@ class _LudoScreenState extends State<LudoScreen> with TickerProviderStateMixin {
               ? [BoxShadow(color: kLudoColors[color].withValues(alpha: 0.6), blurRadius: 18)]
               : null,
         ),
-        child: Row(
-          mainAxisAlignment:
-              alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
-          children: alignRight
-              ? [Flexible(child: info), const SizedBox(width: 6), avatar, const SizedBox(width: 6), dice]
-              : [dice, const SizedBox(width: 6), avatar, const SizedBox(width: 6), Flexible(child: info)],
-        ),
+        child: LayoutBuilder(builder: (context, box) {
+          // Tor ekranda kichik dona rasmi yashiriladi
+          final showAvatar = box.maxWidth > 150;
+          final mid = [if (showAvatar) ...[avatar, const SizedBox(width: 6)]];
+          return Row(
+            mainAxisAlignment:
+                alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: alignRight
+                ? [Flexible(child: info), const SizedBox(width: 6), ...mid, dice]
+                : [dice, const SizedBox(width: 6), ...mid, Flexible(child: info)],
+          );
+        }),
       ),
     );
   }
@@ -373,7 +378,7 @@ class _LudoScreenState extends State<LudoScreen> with TickerProviderStateMixin {
         children: [
           LayoutBuilder(builder: (context, box) {
             // Taxta iloji boricha katta, panellar unga yopishib turadi
-            final board = min(box.maxWidth - 16, box.maxHeight - 190);
+            final board = min(box.maxWidth - 16, box.maxHeight - 222);
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

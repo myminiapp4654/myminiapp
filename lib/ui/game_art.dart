@@ -2,6 +2,9 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../games/chess/chess_pieces.dart';
+import 'crown.dart';
+
 /// Bosh ekrandagi o'yin kartochkalari uchun kichik rasmlar.
 enum GameArt { xo, chess, checkers, battleship, ludo, chain, orbs, walls }
 
@@ -92,18 +95,11 @@ class GameArtPainter extends CustomPainter {
         );
       }
     }
-    final tp = TextPainter(
-      text: TextSpan(
-        text: '♞',
-        style: TextStyle(
-          fontSize: s * 0.62,
-          color: Colors.white,
-          shadows: const [Shadow(color: Colors.black, blurRadius: 8, offset: Offset(2, 3))],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(c, Offset((s - tp.width) / 2, (s - tp.height) / 2 - s * 0.02));
+    // Vektor ot (shriftga bog'liq emas)
+    c.save();
+    c.translate(s * 0.14, s * 0.1);
+    ChessPiecePainter('N').paint(c, Size(s * 0.72, s * 0.72));
+    c.restore();
   }
 
   void _checkers(Canvas c, double s) {
@@ -115,11 +111,7 @@ class GameArtPainter extends CustomPainter {
         ..strokeWidth = r * 0.08
         ..color = Colors.white24);
       if (king) {
-        final tp = TextPainter(
-          text: TextSpan(text: '♛', style: TextStyle(fontSize: r * 1.1, color: const Color(0xFFFFD54F))),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        tp.paint(c, p - Offset(tp.width / 2, tp.height / 2));
+        paintCrown(c, Rect.fromCenter(center: p, width: r * 1.1, height: r * 0.9));
       }
     }
 

@@ -82,8 +82,11 @@ void main() {
     expect(find.text('X yutdi!'), findsOneWidget);
     expect(find.text('X  1 : 0  O'), findsOneWidget);
 
+    await t.pump(const Duration(milliseconds: 600)); // g'alaba oynasi ochilsin
     await t.tap(find.text("Yana o'ynash"));
     await t.pump();
     expect(find.text('O navbati'), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
+    await t.pump(const Duration(seconds: 4));
   });
 }

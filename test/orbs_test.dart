@@ -137,13 +137,13 @@ void main() {
     await t.pumpWidget(const MaterialApp(home: OrbsScreen()));
     await t.pump(const Duration(milliseconds: 100));
     expect(find.text('Chain Burst: 1-daraja'), findsOneWidget);
-    expect(find.text('Yurishlar: 8'), findsOneWidget);
+    expect((t.widget(find.byKey(const ValueKey('moves'))) as Text).data, '8');
 
     // Arenaning pastki qismidagi sharni bosamiz
     final arena = t.getRect(find.byKey(const ValueKey('arena')));
     await t.tapAt(Offset(arena.center.dx, arena.bottom - arena.width / 18));
     await t.pump(const Duration(milliseconds: 16));
-    expect(find.text('Yurishlar: 7'), findsOneWidget);
+    expect((t.widget(find.byKey(const ValueKey('moves'))) as Text).data, '7');
     for (var k = 0; k < 60; k++) {
       await t.pump(const Duration(milliseconds: 16));
     }

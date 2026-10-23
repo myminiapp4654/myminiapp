@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../telegram/telegram.dart';
 import 'chain_game.dart';
+import '../../ui/kit.dart';
 
 const kChainColors = [
   Color(0xFFFF5252),
@@ -93,8 +94,9 @@ class _ChainScreenState extends State<ChainScreen>
   late final ChainGame _game =
       ChainGame(rows: widget.rows, cols: widget.cols, players: widget.players);
 
-  /// Hozir portlayotgan kataklar (chaqnash uchun).
+  /// Hozir portlayotgan kataklar (chaqnash uchun) va to'lqin raqami.
   Set<int> _flash = {};
+  int _wave = 0;
 
   /// Portlash arafasidagi sharlarning titrashi.
   late final AnimationController _shake = AnimationController(
@@ -102,6 +104,12 @@ class _ChainScreenState extends State<ChainScreen>
     ..repeat();
 
   static const _waveDelay = Duration(milliseconds: 170);
+
+  @override
+  void initState() {
+    super.initState();
+    _shake; // kechiktirilgan yaratilish dispose paytida xato bermasligi uchun
+  }
 
   @override
   void dispose() {
@@ -120,7 +128,10 @@ class _ChainScreenState extends State<ChainScreen>
       if (burst.isEmpty) break;
       HapticFeedback.lightImpact();
       Telegram.haptic();
-      setState(() => _flash = burst.toSet());
+      setState(() {
+        _flash = burst.toSet();
+        _wave++;
+      });
     }
     if (!mounted) return;
     setState(() {
@@ -129,213 +140,274 @@ class _ChainScreenState extends State<ChainScreen>
     });
   }
 
+
+  void _restart() => setState(() {
+        _game.newRound();
+        _game.round--; // qayta boshlash raund hisoblanmaydi
+        _flash = {};
+      });
+
   @override
   Widget build(BuildContext context) {
     final g = _game;
-    final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
     final turnColor = kChainColors[g.finished ? g.winner! : g.current];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chain Burst'),
-        actions: [
-          IconButton(
-            tooltip: 'Yurishni qaytarish',
-            icon: const Icon(Icons.undo),
-            onPressed: g.canUndo ? () => setState(g.undo) : null,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ---- o'yinchilar ----
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
-                children: [
-                  for (var p = 0; p < g.players; p++)
-                    Chip(
-                      avatar: CircleAvatar(backgroundColor: kChainColors[p]),
-                      label: Text(
-                        '${kChainNames[p]}  ${g.orbsOf(p)}  ★${g.score[p]}',
-                        style: TextStyle(
-                          decoration: g.isAlive(p)
-                              ? null
-                              : TextDecoration.lineThrough,
-                          fontWeight: p == g.current && !g.finished
-                              ? FontWeight.bold
-                              : null,
-                        ),
+    return GameScaffold(
+      title: 'Chain Burst',
+      palette: GamePalette.chain,
+      actions: [
+        IconButton(
+          tooltip: 'Yurishni qaytarish',
+          icon: const Icon(Icons.undo_rounded),
+          onPressed: g.canUndo ? () => setState(g.undo) : null,
+        ),
+      ],
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    for (var p = 0; p < g.players; p++)
+                      PlayerBadge(
+                        color: kChainColors[p],
+                        name: '${kChainNames[p]}${g.score[p] > 0 ? ' ★${g.score[p]}' : ''}',
+                        value: '${g.orbsOf(p)}',
+                        active: p == g.current && !g.finished,
+                        dimmed: !g.isAlive(p),
                       ),
-                      side: p == g.current && !g.finished
-                          ? BorderSide(color: kChainColors[p], width: 2)
-                          : null,
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Text(
-              g.finished
-                  ? '${kChainNames[g.winner!]} yutdi!'
-                  : '${kChainNames[g.current]} navbati',
-              style: text.titleMedium?.copyWith(color: turnColor),
-            ),
-            const SizedBox(height: 8),
-
-            // ---- taxta ----
-            Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: AspectRatio(
-                    aspectRatio: g.cols / g.rows,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                            color: turnColor.withValues(alpha: 0.8), width: 1),
-                      ),
-                      child: GridView.builder(
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: g.cols),
-                        itemCount: g.cells,
-                        itemBuilder: (context, i) => _buildCell(i, turnColor),
+              SizedBox(
+                height: 34,
+                child: g.finished
+                    ? null
+                    : GlowText('${kChainNames[g.current]} navbati', size: 20, color: turnColor),
+              ),
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: AspectRatio(
+                      aspectRatio: g.cols / g.rows,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0B0612),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: turnColor.withValues(alpha: 0.9), width: 2),
+                          boxShadow: [
+                            BoxShadow(color: turnColor.withValues(alpha: 0.45), blurRadius: 22),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: GridView.builder(
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: EdgeInsets.zero,
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: g.cols),
+                            itemCount: g.cells,
+                            itemBuilder: (context, i) => _buildCell(i, turnColor),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: SizedBox(
-                width: double.infinity,
-                child: g.finished
-                    ? FilledButton(
-                        onPressed: () => setState(g.newRound),
-                        child: const Text("Yana o'ynash"))
-                    : OutlinedButton(
-                        onPressed: g.exploding
-                            ? null
-                            : () => setState(() {
-                                  g.newRound();
-                                  g.round--; // qayta boshlash raund hisoblanmaydi
-                                }),
-                        child: const Text('Qaytadan boshlash')),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(40, 12, 40, 4),
+                child: GameButton(
+                  label: 'Qaytadan boshlash',
+                  icon: Icons.refresh_rounded,
+                  outlined: true,
+                  colors: [turnColor, turnColor],
+                  onPressed: g.exploding || g.finished ? null : _restart,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('${g.round}-raund',
+                    style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              ),
+            ],
+          ),
+          if (g.finished)
+            Positioned.fill(
+              child: WinOverlay(
+                key: ValueKey('win-${g.round}'),
+                title: '${kChainNames[g.winner!]} yutdi!',
+                subtitle: 'Butun taxtani egalladi',
+                color: kChainColors[g.winner!],
+                actions: [
+                  GameButton(
+                    label: "Yana o'ynash",
+                    icon: Icons.replay_rounded,
+                    colors: [kChainColors[g.winner!], const Color(0xFF7B2FF7)],
+                    onPressed: () => setState(g.newRound),
+                  ),
+                  GameButton(
+                    label: 'Bosh menyu',
+                    outlined: true,
+                    colors: const [Colors.white70, Colors.white70],
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
               ),
             ),
-            Text('${g.round}-raund', style: text.bodySmall),
-            const SizedBox(height: 4),
-          ],
-        ),
+        ],
       ),
-      backgroundColor: scheme.surface,
     );
   }
 
   Widget _buildCell(int i, Color gridColor) {
     final g = _game;
     final n = g.count[i];
-    final color = g.owner[i] >= 0 ? kChainColors[g.owner[i]] : null;
+    final color = g.owner[i] >= 0 ? kChainColors[g.owner[i]] : Colors.white;
     final flashing = _flash.contains(i);
-
-    Widget orbs = _Orbs(count: n, color: color ?? Colors.white);
-    if (g.isCritical(i) && !g.finished) {
-      // Yana bitta shar — portlaydi: titraydi
-      orbs = AnimatedBuilder(
-        animation: _shake,
-        builder: (_, child) {
-          final t = _shake.value * 2 * pi;
-          return Transform.translate(
-            offset: Offset(sin(t * 3) * 1.2, cos(t * 2) * 1.2),
-            child: child,
-          );
-        },
-        child: orbs,
-      );
-    }
+    final critical = g.isCritical(i) && !g.finished;
 
     return GestureDetector(
       key: ValueKey('cell-$i'),
       onTap: g.canPlace(i) ? () => _tap(i) : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+      child: Container(
         decoration: BoxDecoration(
-          color: flashing && color != null
-              ? color.withValues(alpha: 0.35)
-              : Colors.transparent,
-          border: Border.all(color: gridColor.withValues(alpha: 0.35), width: 0.5),
+          border: Border.all(color: gridColor.withValues(alpha: 0.28), width: 0.6),
         ),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 150),
-          transitionBuilder: (child, anim) =>
-              ScaleTransition(scale: anim, child: child),
-          child: KeyedSubtree(
-            key: ValueKey('${g.owner[i]}-$n'),
-            child: n == 0 ? const SizedBox.expand() : orbs,
-          ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (flashing)
+              TweenAnimationBuilder<double>(
+                key: ValueKey('flash-$_wave-$i'),
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 380),
+                builder: (_, t, _) => CustomPaint(painter: _FlashPainter(t, color)),
+              ),
+            if (n > 0)
+              AnimatedBuilder(
+                animation: _shake,
+                builder: (_, _) => CustomPaint(
+                  painter: _OrbsPainter(
+                    n,
+                    color,
+                    critical ? _shake.value : null,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Katakdagi sharlar: 1, 2, 3 ta (yoki ko'proq bo'lsa son).
-class _Orbs extends StatelessWidget {
+/// Katakdagi sharlar (1–3 ta, ko'p bo'lsa son), portlash arafasida titraydi.
+class _OrbsPainter extends CustomPainter {
   final int count;
   final Color color;
+  final double? shake;
+  _OrbsPainter(this.count, this.color, this.shake);
 
-  const _Orbs({required this.count, required this.color});
-
-  static const _layouts = <List<Alignment>>[
+  static const _layouts = <List<Offset>>[
     [],
-    [Alignment.center],
-    [Alignment(-0.4, 0), Alignment(0.4, 0)],
-    [Alignment(0, -0.4), Alignment(-0.4, 0.35), Alignment(0.4, 0.35)],
-    [
-      Alignment(-0.4, -0.4),
-      Alignment(0.4, -0.4),
-      Alignment(-0.4, 0.4),
-      Alignment(0.4, 0.4),
-    ],
+    [Offset(0, 0)],
+    [Offset(-0.2, 0), Offset(0.2, 0)],
+    [Offset(0, -0.2), Offset(-0.2, 0.17), Offset(0.2, 0.17)],
+    [Offset(-0.2, -0.2), Offset(0.2, -0.2), Offset(-0.2, 0.2), Offset(0.2, 0.2)],
   ];
 
   @override
-  Widget build(BuildContext context) {
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide;
+    final c = size.center(Offset.zero);
+    final r = s * 0.2;
+    var jitter = Offset.zero;
+    if (shake != null) {
+      final t = shake! * 2 * pi;
+      jitter = Offset(sin(t * 3), cos(t * 2)) * s * 0.03;
+    }
     final layout = _layouts[min(count, 4)];
-    return LayoutBuilder(builder: (context, box) {
-      final d = box.maxWidth * 0.36;
-      return Stack(
-        children: [
-          for (final a in layout)
-            Align(
-              alignment: a,
-              child: Container(
-                width: d,
-                height: d,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    center: const Alignment(-0.3, -0.3),
-                    colors: [Color.lerp(color, Colors.white, 0.5)!, color],
-                  ),
-                ),
-              ),
-            ),
-          if (count > 4)
-            Center(
-              child: Text('$count',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-            ),
-        ],
+
+    // Umumiy nur
+    canvas.drawCircle(
+      c,
+      s * 0.42,
+      Paint()
+        ..shader = RadialGradient(colors: [
+          color.withValues(alpha: shake != null ? 0.45 : 0.25),
+          color.withValues(alpha: 0),
+        ]).createShader(Rect.fromCircle(center: c, radius: s * 0.42)),
+    );
+    for (final o in layout) {
+      final p = c + o * s + jitter;
+      canvas.drawCircle(
+        p,
+        r,
+        Paint()
+          ..shader = RadialGradient(
+            center: const Alignment(-0.35, -0.4),
+            colors: [
+              Colors.white,
+              Color.lerp(color, Colors.white, 0.35)!,
+              color,
+              Color.lerp(color, Colors.black, 0.45)!,
+            ],
+            stops: const [0, 0.18, 0.55, 1],
+          ).createShader(Rect.fromCircle(center: p, radius: r)),
       );
-    });
+    }
+    if (count > 4) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '$count',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: s * 0.3),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant _OrbsPainter old) =>
+      old.count != count || old.color != color || old.shake != shake;
+}
+
+/// Portlash: kengayuvchi halqa va uchqunlar.
+class _FlashPainter extends CustomPainter {
+  final double t;
+  final Color color;
+  _FlashPainter(this.t, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.shortestSide / 2;
+    canvas.drawCircle(
+      c,
+      r * (0.4 + t * 0.9),
+      Paint()
+        ..shader = RadialGradient(colors: [
+          Colors.white.withValues(alpha: 0.9 * (1 - t)),
+          color.withValues(alpha: 0.7 * (1 - t)),
+          color.withValues(alpha: 0),
+        ]).createShader(Rect.fromCircle(center: c, radius: r * 1.3)),
+    );
+    for (var k = 0; k < 4; k++) {
+      final a = k * pi / 2;
+      final p = c + Offset(cos(a), sin(a)) * r * (0.3 + t);
+      canvas.drawCircle(p, r * 0.12 * (1 - t), Paint()..color = Colors.white.withValues(alpha: 1 - t));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FlashPainter old) => old.t != t;
 }

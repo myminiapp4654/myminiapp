@@ -188,7 +188,7 @@ void main() {
   testWidgets("ekran: g'ishtni urish, do'kon, saqlash", (t) async {
     SharedPreferences.setMockInitialValues({});
     await t.pumpWidget(const MaterialApp(home: WallsScreen()));
-    await t.pumpAndSettle(const Duration(milliseconds: 100));
+    await t.pump(const Duration(milliseconds: 400));
     expect(find.text('1/25-devor'), findsOneWidget);
 
     // Birinchi g'ishtni singuncha uramiz
@@ -202,7 +202,7 @@ void main() {
     expect(find.textContaining('💰 0.0'), findsNothing); // pul tushdi
 
     await t.tap(find.byKey(const ValueKey('shop')));
-    await t.pumpAndSettle();
+    await t.pump(const Duration(milliseconds: 500));
     expect(find.text("Do'kon"), findsOneWidget);
 
     // Ekrandan chiqqanda saqlanadi
