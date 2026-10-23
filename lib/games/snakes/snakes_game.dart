@@ -199,7 +199,7 @@ class SnakesBoard {
           if (!free(a) || !free(b)) continue;
           final (_, c1) = SnakesGame.cellRC(a);
           final (_, c2) = SnakesGame.cellRC(b);
-          if ((c1 - c2).abs() > (ladder ? 3 : 4)) continue;
+          if ((c1 - c2).abs() > (ladder ? 2 : 3)) continue;
           final line = _samples(a, b);
           if (!apart(line, gap)) continue;
 
@@ -213,8 +213,8 @@ class SnakesBoard {
             snakes[a] = b;
             looks[a] = SnakeLook(
               r.nextDouble() * 2 - 1,
-              2 + r.nextInt(3).toDouble(),
-              0.1 + r.nextDouble() * 0.12,
+              2 + r.nextInt(2).toDouble(),
+              0.08 + r.nextDouble() * 0.08,
               r.nextInt(6),
               r.nextInt(2),
             );
@@ -224,9 +224,10 @@ class SnakesBoard {
       }
     }
 
+    // Qisqa va ixcham: ilon boshi qayerdaligi aniq ko'rinsin.
     // Uzunlari birinchi — ularga joy kerak
-    const ladderRows = [4, 3, 2, 2, 1, 1];
-    const snakeRows = [5, 4, 3, 2, 1, 1];
+    const ladderRows = [3, 2, 2, 1, 1, 1];
+    const snakeRows = [3, 2, 2, 1, 1, 1];
     for (var k = 0; k < 6; k++) {
       place(false, snakeRows[k]);
       place(true, ladderRows[k]);

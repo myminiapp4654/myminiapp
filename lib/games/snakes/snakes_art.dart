@@ -19,7 +19,7 @@ Offset snakePoint(int head, int tail, SnakeLook look, double t) {
   final d = e - h;
   final len = d.distance;
   final n = Offset(-d.dy, d.dx) / len;
-  final bend = look.bend * len * 0.16 * sin(pi * t);
+  final bend = look.bend * len * 0.12 * sin(pi * t);
   final wave = look.wiggle * 2.2 * sin(pi * look.waves * t) * (1 - 0.35 * t);
   return h + d * t + n * (bend + wave);
 }
@@ -49,6 +49,13 @@ class SnakesBoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final s = size.width / SnakesGame.size;
     _cells(canvas, s);
+    // Qayerga tushsa nima bo'lishi: narvon pasti — yashil, ilon boshi — qizil katak
+    for (final n in game.ladders.keys) {
+      _mark(canvas, s, n, const Color(0xFF00E676));
+    }
+    for (final n in game.snakes.keys) {
+      _mark(canvas, s, n, const Color(0xFFFF1744));
+    }
     for (final e in game.ladders.entries) {
       _ladder(canvas, s, e.key, e.value);
     }
@@ -101,6 +108,19 @@ class SnakesBoardPainter extends CustomPainter {
       canvas,
       cellCenter(SnakesGame.last) * s + Offset(0, s * 0.08),
       s * 0.28,
+    );
+  }
+
+  void _mark(Canvas canvas, double s, int n, Color color) {
+    final rect = Rect.fromCenter(center: cellCenter(n) * s, width: s, height: s).deflate(s * 0.06);
+    final rr = RRect.fromRectAndRadius(rect, Radius.circular(s * 0.18));
+    canvas.drawRRect(rr, Paint()..color = color.withValues(alpha: 0.28));
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.06
+        ..color = color.withValues(alpha: 0.85),
     );
   }
 
@@ -191,7 +211,7 @@ class SnakesBoardPainter extends CustomPainter {
     final dark = Color.lerp(body, Colors.black, 0.45)!;
     const steps = 140;
     Offset at(double t) => snakePoint(head, tail, look, t) * s;
-    double width(double t) => s * (0.34 - 0.24 * t);
+    double width(double t) => s * (0.26 - 0.18 * t);
 
     // Soya (bitta qatlamda, ustma-ust tushgan doiralar qoraymasin)
     canvas.saveLayer(
@@ -249,7 +269,7 @@ class SnakesBoardPainter extends CustomPainter {
     canvas.save();
     canvas.translate(h.dx, h.dy);
     canvas.rotate(ang);
-    final hw = s * 0.42, hl = s * 0.5;
+    final hw = s * 0.36, hl = s * 0.44;
     // Til
     final tongue = Paint()
       ..color = const Color(0xFFE53935)
