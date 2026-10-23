@@ -25,7 +25,20 @@ class StackTowerPainter extends CustomPainter {
   /// Aniq qo'yilganda yuqori qavat atrofidagi halqa (0..1).
   final double? ripple;
 
-  StackTowerPainter(this.g, {required this.cam, required this.showMoving, this.ripple});
+  /// Minora tepasi ekranning qayerida tursa, kamera ko'tarila boshlaydi (0..1).
+  final double topAt;
+
+  /// Minora kengligi ekran kengligiga nisbatan.
+  final double widthFactor;
+
+  StackTowerPainter(
+    this.g, {
+    required this.cam,
+    required this.showMoving,
+    this.ripple,
+    this.topAt = 0.42,
+    this.widthFactor = 0.6,
+  });
 
   static const _h = 2.0; // qavat balandligi
   static final _c = cos(pi / 6), _s = sin(pi / 6);
@@ -38,12 +51,13 @@ class StackTowerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    _k = size.width * 0.6 / (StackGame.base * 2 * _c);
+    // Tor joyda ham minora balandlikka sig'sin
+    _k = min(size.width * widthFactor, size.height * 0.55) / (StackGame.base * 2 * _c);
     // Minora tepasi ekranning ~45% balandligida
     // Boshida minora yerda (ekran pastida) turadi; tepasi ekran o'rtasidan
     // oshganda kamera ko'tarila boshlaydi
     final ground = size.height * 0.8;
-    final follow = size.height * 0.42 + (cam + 1) * _h * _k;
+    final follow = size.height * topAt + (cam + 1) * _h * _k;
     _origin = Offset(size.width / 2, max(ground, follow));
 
     _ground(canvas);

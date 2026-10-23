@@ -68,16 +68,24 @@ class Telegram {
   static void init() {
     final app = _webApp;
     if (app == null || !isAvailable) return;
-    try {
-      app.callMethod('ready'.toJS);
-      app.callMethod('expand'.toJS);
-      app.callMethod('setHeaderColor'.toJS, '#1B1446'.toJS);
-      app.callMethod('setBackgroundColor'.toJS, '#1B1446'.toJS);
-      // Tasodifan pastga surib ilovani yopib qo'ymaslik uchun
-      app.callMethod('disableVerticalSwipes'.toJS);
-    } catch (_) {
-      // Eski Telegram versiyalarida ba'zi metodlar yo'q — muhim emas.
+    // Har biri alohida: eski Telegram'da biror metod bo'lmasa, qolganlari baribir ishlaydi
+    void call(String method, [JSAny? arg]) {
+      try {
+        arg == null ? app.callMethod(method.toJS) : app.callMethod(method.toJS, arg);
+      } catch (_) {}
     }
+
+    // Eng muhimi birinchi: barmoq bilan pastga surilganda ilova yopilmasin
+    call('disableVerticalSwipes');
+    try {
+      app['isVerticalSwipesEnabled'] = false.toJS;
+    } catch (_) {}
+    // Baribir yopmoqchi bo'lsa — Telegram "Yopilsinmi?" deb so'raydi
+    call('enableClosingConfirmation');
+    call('ready');
+    call('expand');
+    call('setHeaderColor', '#1B1446'.toJS);
+    call('setBackgroundColor', '#1B1446'.toJS);
   }
 
   /// Yengil tebranish (tugma bosilganda).

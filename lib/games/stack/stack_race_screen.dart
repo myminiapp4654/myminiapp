@@ -215,16 +215,16 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
         onTapDown: (_) => _tap(),
         child: Stack(
           children: [
-            Row(
-              children: [
-                for (var k = 0; k < _lanes.length; k++)
-                  Expanded(
-                    // O'zingiz o'ynayotganda yo'lagingiz kengroq, yiqilgach — hammasi teng
-                    flex: k == 0 && meAlive ? 3 : 2,
-                    child: _lane(_lanes[k], k),
-                  ),
-              ],
-            ),
+            // O'ynayotganda — o'z minorangiz katta, raqiblar tepada kichik kartochkalarda.
+            // Yiqilgach — hamma minoralar teng yonma-yon (kuzatish).
+            if (meAlive)
+              _focus()
+            else
+              Row(
+                children: [
+                  for (var k = 0; k < _lanes.length; k++) Expanded(child: _lane(_lanes[k], k)),
+                ],
+              ),
             if (_countdown > 0)
               Positioned.fill(
                 child: IgnorePointer(
@@ -251,8 +251,157 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
     );
   }
 
+  Color _color(int index) =>
+      index == 0 ? const Color(0xFF5CFF8A) : _botColors[(index - 1) % _botColors.length];
+
+  /// O'zingiz o'ynayotgan payt: katta minora + tepada raqiblar.
+  Widget _focus() {
+    final me = _me;
+    final sincePerfect = me.game.time - me.perfectAt;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: stackBackground(me.cam),
+              ),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: CustomPaint(
+            painter: StackTowerPainter(
+              me.game,
+              cam: me.cam,
+              showMoving: _countdown <= 0,
+              ripple: sincePerfect < 0.6 ? sincePerfect / 0.6 : null,
+              topAt: 0.56,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 8,
+          left: 8,
+          right: 8,
+          child: IgnorePointer(
+            child: Column(
+              children: [
+                // Raqiblar
+                Row(
+                  children: [
+                    for (var k = 1; k < _lanes.length; k++)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: _miniCard(_lanes[k], k),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // O'zingizning hisobingiz
+                Text(
+                  '${me.game.score}',
+                  key: const ValueKey('score-0'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 56,
+                    fontWeight: FontWeight.w900,
+                    shadows: [Shadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 4))],
+                  ),
+                ),
+                Text(_place(me), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                if (sincePerfect < 0.9)
+                  Opacity(
+                    opacity: (1 - sincePerfect / 0.9).clamp(0.0, 1.0),
+                    child: GlowText(
+                      me.game.combo >= 2 ? "Zo'r! ×${me.game.combo}" : "Zo'r!",
+                      size: 24,
+                      color: Colors.white,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Hozirgi o'rin: "2-o'rinda".
+  String _place(StackLane l) => "${_ranking.indexOf(l) + 1}-o'rinda";
+
+  /// Raqibning kichik kartochkasi: jonli minora, ism, hisob.
+  Widget _miniCard(StackLane l, int index) {
+    final color = _color(index);
+    return Container(
+      height: 128,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.7), width: 1.5),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: stackBackground(l.cam),
+        ),
+        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 8, offset: Offset(0, 3))],
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Opacity(
+              opacity: l.alive ? 1 : 0.5,
+              child: CustomPaint(
+                painter: StackTowerPainter(
+                  l.game,
+                  cam: l.cam,
+                  showMoving: _countdown <= 0 && l.alive,
+                  topAt: 0.5,
+                  widthFactor: 0.55,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 4,
+            left: 6,
+            right: 6,
+            child: Row(
+              children: [
+                Icon(Icons.smart_toy_rounded, color: color, size: 12),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Text(l.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11)),
+                ),
+                Text('${l.game.score}',
+                    key: ValueKey('score-$index'),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+              ],
+            ),
+          ),
+          if (!l.alive)
+            const Positioned(
+              bottom: 6,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Text('Yiqildi',
+                    style: TextStyle(color: Color(0xFFFF8A80), fontSize: 11, fontWeight: FontWeight.w900)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _lane(StackLane l, int index) {
-    final color = l.isMe ? const Color(0xFF5CFF8A) : _botColors[(index - 1) % _botColors.length];
+    final color = _color(index);
     final sincePerfect = l.game.time - l.perfectAt;
     return Container(
       decoration: BoxDecoration(
@@ -274,6 +423,8 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
                   cam: l.cam,
                   showMoving: _countdown <= 0 && l.alive,
                   ripple: sincePerfect < 0.6 ? sincePerfect / 0.6 : null,
+                  // Tor yo'lakda minora kengroq chizilsin
+                  widthFactor: 0.9,
                 ),
               ),
             ),
