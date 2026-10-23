@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../games/checkers/checkers_screen.dart';
 import '../games/xo/xo_screen.dart';
 
 /// Bosh ekran: o'yinlar ro'yxati.
@@ -48,6 +49,16 @@ class HomeScreen extends StatelessWidget {
               subtitle: const Text('Ikki kishi, bitta telefonda'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _openXo(context),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.circle_outlined),
+              title: const Text('Shashka'),
+              subtitle: const Text('Ikki kishi, bitta telefonda'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const CheckersScreen())),
             ),
           ),
         ],
