@@ -34,8 +34,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.3.3
   web_socket_channel: ^3.0.0
-  oyinim_core:
-    path: packages/oyinim_core
 
 dev_dependencies:
   flutter_test:

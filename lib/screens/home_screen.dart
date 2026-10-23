@@ -104,12 +104,10 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, snap) {
               final me = snap.data?.data();
               final name = (me?['name'] as String?) ?? _server.myName;
-              final stars = (me?['stars'] as int?) ?? 0;
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const CircleAvatar(child: Icon(Icons.person)),
                 title: Text(name),
-                trailing: Text('★ $stars'),
               );
             },
           ),

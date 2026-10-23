@@ -1,10 +1,9 @@
 # Oyinim — Telegram Mini App
 
-Telegram ichida do'stlar bilan o'ynash uchun o'yinlar: X-O, shashka, viktorina, Ha/Yo'q, so'z topish, harflar.
+Telegram ichida do'stlar bilan o'ynash uchun Mini App. Hozircha asos: Telegram orqali kirish va 2 kishilik xonalar. O'yinlar keyin qo'shiladi (oldingi versiyasi `games-before-removal` tegida).
 
 - **Ilova:** Flutter web, [lib/](lib/)
-- **Server:** Dart + WebSocket, [server/](server/). O'yin qoidalarini server tekshiradi, Telegram foydalanuvchisini bot tokeni orqali tasdiqlaydi.
-- **Umumiy qoidalar va savollar:** [packages/oyinim_core/](packages/oyinim_core/). Bu paketni ilova ham, server ham ishlatadi.
+- **Server:** Dart + WebSocket, [server/](server/). Telegram foydalanuvchisini bot tokeni orqali tasdiqlaydi, botda `/start` ga javob beradi.
 
 Firebase ishlatilmaydi.
 
@@ -39,6 +38,6 @@ Ikki o'yinchini sinash uchun ikkita brauzer oynasini oching (biri inkognito reji
 ## Testlar
 
 ```bash
-flutter test            # qoidalar va ma'lumotlar
-cd server && dart test  # server: Telegram imzosi, o'yinlar, WebSocket orqali to'liq o'yin
+flutter test
+cd server && dart test  # server: Telegram imzosi, xonalar, WebSocket
 ```

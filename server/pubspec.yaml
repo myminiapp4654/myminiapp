@@ -9,8 +9,6 @@ environment:
 dependencies:
   crypto: ^3.0.0
   http: ^1.2.0
-  oyinim_core:
-    path: ../packages/oyinim_core
   shelf: ^1.4.0
   shelf_static: ^1.1.0
   shelf_web_socket: ^2.0.0

@@ -95,9 +95,7 @@ class TelegramBot {
         "🎮 <b>Qanday o'ynaladi</b>\n\n"
         "1. «O'ynash» tugmasini bosing\n"
         "2. Xona oching\n"
-        "3. ✈ tugmasi bilan do'stingizni chaqiring\n"
-        "4. O'yin tanlang va o'ynang!\n\n"
-        "O'yinlar: X-O, shashka, viktorina, Ha/Yo'q, so'z topish, harflar",
+        "3. Do'stingizni chaqiring",
       );
       return;
     }

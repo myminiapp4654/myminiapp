@@ -7,40 +7,6 @@ class Ctx {
   final String name;
 
   Ctx(this.db, this.uid, this.name);
-
-  // ---- foydalanuvchi ma'lumotlari (yulduzlar, daraja) ----
-
-  String get _userPath => 'users/$uid';
-
-  Map<String, dynamic> get me => db.get(_userPath) ?? {'uid': uid};
-
-  void addStars(String toUid, int count) {
-    final path = 'users/$toUid';
-    final u = db.get(path) ?? {'uid': toUid};
-    u['stars'] = ((u['stars'] as int?) ?? 0) + count;
-    db.set(path, u);
-  }
-
-  /// Bitta yulduz sarflaydi. Yetmasa false.
-  bool spendStar() {
-    final u = me;
-    final stars = (u['stars'] as int?) ?? 0;
-    if (stars <= 0) return false;
-    u['stars'] = stars - 1;
-    db.set(_userPath, u);
-    return true;
-  }
-
-  int get wordPuzzleLevel => (me['wordPuzzleLevel'] as int?) ?? 0;
-
-  void setWordPuzzleLevel(String toUid, int level) {
-    final path = 'users/$toUid';
-    final u = db.get(path) ?? {'uid': toUid};
-    final current = (u['wordPuzzleLevel'] as int?) ?? 0;
-    if (level <= current) return;
-    u['wordPuzzleLevel'] = level;
-    db.set(path, u);
-  }
 }
 
 typedef Handler = Object? Function(Ctx c, Map<String, dynamic> p);

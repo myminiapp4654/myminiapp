@@ -131,7 +131,7 @@ class Hub {
     s.name = name;
 
     final path = 'users/$uid';
-    final u = db.get(path) ?? {'uid': uid, 'stars': 0, 'wordPuzzleLevel': 0};
+    final u = db.get(path) ?? {'uid': uid};
     if (u['name'] != name) {
       u['name'] = name;
       db.set(path, u);

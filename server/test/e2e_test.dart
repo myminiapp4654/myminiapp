@@ -75,7 +75,7 @@ void main() {
     store = Store();
     final hub = Hub(
       db: store,
-      handlers: {...roomHandlers(), ...gameHandlers()},
+      handlers: roomHandlers(),
       botToken: 'test',
       devLogin: devLogin,
       botUsername: 'oyinim_bot',
@@ -98,7 +98,7 @@ void main() {
     await c.close();
   });
 
-  test("Ikki o'yinchi: xona -> taklif -> X-O o'yini real vaqtda", () async {
+  test("Ikki o'yinchi: xona real vaqtda yangilanadi", () async {
     server = await start(devLogin: true);
     final ali = await TestClient.connect(server.port);
     final vali = await TestClient.connect(server.port);
@@ -120,23 +120,6 @@ void main() {
     // Ali Valining kirganini real vaqtda ko'radi
     await ali.waitDoc('rooms/$room', (d) => (d!['players'] as Map).length == 2);
 
-    final game = await ali.call('room.propose',
-        {'code': room, 'game': 'tictactoe', 'options': {'gridSize': 10}}) as String;
-    await vali.waitDoc('rooms/$room', (d) => d!['gameInvite'] != null);
-    await vali.call('room.accept', {'code': room});
-
-    final topic = 'games/$game';
-    await ali.watch(topic);
-    await vali.watch(topic);
-
-    await ali.call('ttt.move', {'code': game, 'index': 0});
-    final afterAli = await vali.waitDoc(topic, (d) => d!['board'][0] == 'X');
-    expect(afterAli!['currentTurn'], 'O');
-
-    await vali.call('ttt.move', {'code': game, 'index': 11});
-    await ali.waitDoc(topic, (d) => d!['board'][11] == 'O');
-
-    // Profilda yulduzlar
     final me = await ali.watch('me');
     expect(me!['name'], 'Ali');
 

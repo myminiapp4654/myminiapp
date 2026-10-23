@@ -51,86 +51,37 @@ void main() {
     });
   });
 
-  group("O'yinlar", () {
+  group('Xonalar', () {
     late Store db;
     late Map<String, Handler> h;
-    late Ctx host, guest;
+    late Ctx ali, vali;
 
     setUp(() {
       db = Store();
-      h = {...roomHandlers(), ...gameHandlers()};
-      host = Ctx(db, 'tg1', 'Ali');
-      guest = Ctx(db, 'tg2', 'Vali');
+      h = roomHandlers();
+      ali = Ctx(db, 'tg1', 'Ali');
+      vali = Ctx(db, 'tg2', 'Vali');
     });
 
-    String startGame(String game) {
-      final room = h['room.create']!(host, {}) as String;
-      expect(h['room.join']!(guest, {'code': room}), isTrue);
-      final gameCode =
-          h['room.propose']!(host, {'code': room, 'game': game}) as String;
-      h['room.accept']!(guest, {'code': room});
-      expect(db.get('rooms/$room')!['gameInvite']['response'], 'accepted');
-      return gameCode;
-    }
+    tearDown(() => db.dispose());
 
     test("xonaga uchinchi odam kira olmaydi", () {
-      final room = h['room.create']!(host, {}) as String;
-      h['room.join']!(guest, {'code': room});
+      final room = h['room.create']!(ali, {}) as String;
+      expect(h['room.join']!(vali, {'code': room}), isTrue);
       expect(h['room.join']!(Ctx(db, 'tg3', 'Sami'), {'code': room}), isFalse);
     });
 
-    test('X-O: navbat va band katak tekshiriladi', () {
-      final code = startGame('tictactoe');
-      h['ttt.move']!(guest, {'code': code, 'index': 0}); // navbat X da
-      expect(db.get('games/$code')!['board'][0], '');
-      h['ttt.move']!(host, {'code': code, 'index': 0});
-      h['ttt.move']!(guest, {'code': code, 'index': 0}); // band
-      final d = db.get('games/$code')!;
-      expect(d['board'][0], 'X');
-      expect(d['currentTurn'], 'O');
+    test("mavjud bo'lmagan xona", () {
+      expect(h['room.join']!(vali, {'code': 'ZZZZZZ'}), isFalse);
     });
 
-    test("Shashka: qoidaga zid yurish rad etiladi", () {
-      final code = startGame('checkers');
-      // 40 (5-qator, 0-ustun) dagi oq dona orqaga yura olmaydi
-      expect(
-        () => h['checkers.move']!(host, {'code': code, 'from': 40, 'to': 49}),
-        throwsA(isA<GameError>()),
-      );
-      h['checkers.move']!(host, {'code': code, 'from': 40, 'to': 33});
-      expect(db.get('checkers/$code')!['currentTurn'], 'b');
-    });
-
-    test("Viktorina: ball serverda hisoblanadi, ikki marta javob yo'q", () {
-      final code = startGame('quiz');
-      h['quiz.start']!(host, {'code': code});
-      final q = (db.get('quiz_rooms/$code')!['questions'] as List)[0] as Map;
-      final correct = q['c'] as int;
-      h['quiz.answer']!(guest, {'code': code, 'index': correct});
-      h['quiz.answer']!(guest, {'code': code, 'index': correct});
-      final score = db.get('quiz_rooms/$code')!['players']['tg2']['score'];
-      expect(score, inInclusiveRange(1400, 1500));
-
-      h['quiz.next']!(host, {'code': code, 'current': 0});
-      h['quiz.next']!(host, {'code': code, 'current': 0}); // takror
-      expect(db.get('quiz_rooms/$code')!['currentQuestion'], 1);
-    });
-
-    test("So'z topish: yulduz yetmasa harf ochilmaydi", () {
-      final code = startGame('wordpuzzle');
-      expect(h['wp.reveal']!(host, {'code': code}), isFalse);
-      host.addStars('tg1', 1);
-      expect(h['wp.reveal']!(host, {'code': code}), isTrue);
-      expect(db.get('users/tg1')!['stars'], 0);
-      expect(db.get('word_puzzle/$code')!['revealedLetters'], hasLength(1));
-    });
-
-    test("Begona odam o'yinga yura olmaydi", () {
-      final code = startGame('tictactoe');
-      expect(
-        () => h['ttt.move']!(Ctx(db, 'tg9', 'X'), {'code': code, 'index': 1}),
-        throwsA(isA<GameError>()),
-      );
+    test("xo'jayin chiqsa xona ikkinchisiga o'tadi, oxirgisi chiqsa o'chadi", () {
+      final room = h['room.create']!(ali, {}) as String;
+      h['room.join']!(vali, {'code': room});
+      h['room.leave']!(ali, {'code': room});
+      expect(db.get('rooms/$room')!['host'], 'tg2');
+      h['room.leave']!(vali, {'code': room});
+      expect(db.exists('rooms/$room'), isFalse);
     });
   });
 }
