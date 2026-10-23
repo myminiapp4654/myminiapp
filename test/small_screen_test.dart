@@ -7,7 +7,7 @@ import 'package:oyinim/games/chess/chess_screen.dart';
 import 'package:oyinim/games/maze/maze_screen.dart';
 import 'package:oyinim/games/snake/snake_screen.dart';
 import 'package:oyinim/games/snakes/snakes_screen.dart';
-import 'package:oyinim/games/orbs/orbs_screen.dart';
+import 'package:oyinim/games/stack/stack_screen.dart';
 import 'package:oyinim/games/walls/walls_screen.dart';
 import 'package:oyinim/games/xo/xo_screen.dart';
 import 'package:oyinim/screens/home_screen.dart';
@@ -25,7 +25,7 @@ void main() {
     'xo3': const XoScreen(size: 3),
     'xo10': const XoScreen(size: 10),
     'chain8': const ChainScreen(players: 8, rows: 12, cols: 8),
-    'orbs': const OrbsScreen(),
+    'orbs': const StackScreen(),
     'walls': const WallsScreen(),
   };
 

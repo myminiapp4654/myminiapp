@@ -20,7 +20,7 @@ class GamePalette {
   static const checkers = GamePalette(Color(0xFF3B1E10), Color(0xFF140A05), Color(0xFFFF8A3D));
   static const xo = GamePalette(Color(0xFF15204A), Color(0xFF070B1E), Color(0xFF5CE1E6));
   static const chain = GamePalette(Color(0xFF1A0B2E), Color(0xFF07020F), Color(0xFFFF4D8D));
-  static const orbs = GamePalette(Color(0xFF102A43), Color(0xFF050D18), Color(0xFF7CF5C4));
+  static const stack = GamePalette(Color(0xFF1E3A5F), Color(0xFF0A1424), Color(0xFF4FC3F7));
   static const walls = GamePalette(Color(0xFF3A1F14), Color(0xFF120804), Color(0xFFFFB347));
 }
 

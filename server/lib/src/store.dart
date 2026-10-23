@@ -17,13 +17,14 @@ typedef DocListener = void Function(String path, Map<String, dynamic>? data);
 ///
 /// Hamma narsa bitta isolate'da ishlaydi, shuning uchun har bir amal
 /// boshqasi bilan aralashmaydi (Firestore'dagi tranzaksiyaga ehtiyoj yo'q).
-/// O'yin xonalari xotirada turadi; faqat `users` faylga saqlanadi.
+/// O'yin xonalari xotirada turadi; `users` va `scores` faylga saqlanadi.
 class Store {
   final _docs = <String, Map<String, dynamic>>{};
   final _touched = <String, DateTime>{};
   final _listeners = <DocListener>[];
 
   final File? _usersFile;
+  final File? _scoresFile;
   Timer? _saveTimer;
   Timer? _gcTimer;
 
@@ -31,8 +32,10 @@ class Store {
   final Duration roomTtl;
 
   Store({String? dataDir, this.roomTtl = const Duration(hours: 6)})
-      : _usersFile = dataDir == null ? null : File('$dataDir/users.json') {
+      : _usersFile = dataDir == null ? null : File('$dataDir/users.json'),
+        _scoresFile = dataDir == null ? null : File('$dataDir/scores.json') {
     _loadUsers();
+    _load(_scoresFile, 'scores');
     _gcTimer = Timer.periodic(const Duration(minutes: 10), (_) => _gc());
   }
 
@@ -88,13 +91,14 @@ class Store {
     for (final l in _listeners) {
       l(path, data);
     }
-    if (path.startsWith('users/')) _scheduleSave();
+    if (path.startsWith('users/') || path.startsWith('scores/')) _scheduleSave();
   }
 
   void _gc() {
     final cutoff = DateTime.now().subtract(roomTtl);
     final old = _touched.entries
-        .where((e) => !e.key.startsWith('users/') && e.value.isBefore(cutoff))
+        .where((e) =>
+            !e.key.startsWith('users/') && !e.key.startsWith('scores/') && e.value.isBefore(cutoff))
         .map((e) => e.key)
         .toList();
     for (final p in old) {
@@ -118,6 +122,36 @@ class Store {
     }
   }
 
+  /// Kolleksiyani fayldan yuklash: {id: hujjat}.
+  void _load(File? f, String collection) {
+    if (f == null || !f.existsSync()) return;
+    try {
+      final all = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
+      all.forEach((id, data) {
+        _docs['$collection/$id'] = Map<String, dynamic>.from(data as Map);
+      });
+    } catch (e) {
+      stderr.writeln("${f.path} o'qilmadi: $e");
+    }
+  }
+
+  void _save(File? f, String collection) {
+    if (f == null) return;
+    final out = <String, dynamic>{};
+    final prefix = '$collection/';
+    _docs.forEach((path, data) {
+      if (path.startsWith(prefix)) out[path.substring(prefix.length)] = data;
+    });
+    try {
+      f.parent.createSync(recursive: true);
+      final tmp = File('${f.path}.tmp');
+      tmp.writeAsStringSync(jsonEncode(out));
+      tmp.renameSync(f.path);
+    } catch (e) {
+      stderr.writeln('${f.path} saqlanmadi: $e');
+    }
+  }
+
   void _scheduleSave() {
     if (_usersFile == null) return;
     _saveTimer?.cancel();
@@ -125,6 +159,7 @@ class Store {
   }
 
   void saveNow() {
+    _save(_scoresFile, 'scores');
     final f = _usersFile;
     if (f == null) return;
     final users = <String, dynamic>{};

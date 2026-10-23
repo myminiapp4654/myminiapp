@@ -6,7 +6,7 @@ import '../games/chess/chess_pieces.dart';
 import 'crown.dart';
 
 /// Bosh ekrandagi o'yin kartochkalari uchun kichik rasmlar.
-enum GameArt { xo, chess, checkers, battleship, snakes, maze, snake, chain, orbs, walls }
+enum GameArt { xo, chess, checkers, battleship, snakes, maze, snake, chain, stack, walls }
 
 class GameArtPainter extends CustomPainter {
   final GameArt art;
@@ -35,8 +35,8 @@ class GameArtPainter extends CustomPainter {
         _neonSnake(canvas, s);
       case GameArt.chain:
         _chain(canvas, s);
-      case GameArt.orbs:
-        _orbs(canvas, s);
+      case GameArt.stack:
+        _stack(canvas, s);
       case GameArt.walls:
         _walls(canvas, s);
     }
@@ -337,21 +337,38 @@ class GameArtPainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 1 - t));
   }
 
-  void _orbs(Canvas c, double s) {
-    const colors = [Color(0xFFFF5252), Color(0xFF40C4FF), Color(0xFFFFD740), Color(0xFF69F0AE)];
-    final r = s * 0.085;
-    final rnd = Random(3);
-    for (var row = 0; row < 4; row++) {
-      for (var k = 0; k < 5 - row % 2; k++) {
-        final p = Offset(s * 0.14 + k * r * 2 + (row.isOdd ? r : 0), s * 0.86 - row * r * 1.75);
-        c.drawCircle(p, r * 0.95, _ball(p, r, colors[rnd.nextInt(4)]));
+  void _stack(Canvas c, double s) {
+    // Izometrik minora: pastdan yuqoriga toraygan bloklar
+    final k = s * 0.034;
+    final cx = s * 0.5;
+    final c30 = cos(pi / 6), s30 = sin(pi / 6);
+    Offset iso(double x, double y, double z, double baseY) =>
+        Offset(cx + (x - z) * c30 * k, baseY + ((x + z) * s30 - y) * k);
+    const levels = 6;
+    var w = 10.0, d = 10.0, x = -5.0, z = -5.0;
+    final shift = sin(t * pi * 2) * 3; // tepadagi suzayotgan blok
+    for (var lv = 0; lv < levels; lv++) {
+      final moving = lv == levels - 1;
+      final bx = moving ? x + shift : x;
+      final hue = (200 + lv * 18.0) % 360;
+      Color col(double l) => HSLColor.fromAHSL(1, hue, 0.6, l).toColor();
+      final y0 = lv * 2.0, y1 = y0 + 2.0;
+      final baseY = s * 0.7;
+      final top = [iso(bx, y1, z, baseY), iso(bx + w, y1, z, baseY), iso(bx + w, y1, z + d, baseY), iso(bx, y1, z + d, baseY)];
+      final right = [iso(bx + w, y1, z, baseY), iso(bx + w, y1, z + d, baseY), iso(bx + w, y0, z + d, baseY), iso(bx + w, y0, z, baseY)];
+      final left = [iso(bx, y1, z + d, baseY), iso(bx + w, y1, z + d, baseY), iso(bx + w, y0, z + d, baseY), iso(bx, y0, z + d, baseY)];
+      c.drawPath(Path()..addPolygon(right, true), Paint()..color = col(0.48));
+      c.drawPath(Path()..addPolygon(left, true), Paint()..color = col(0.38));
+      c.drawPath(Path()..addPolygon(top, true), Paint()..color = col(0.64));
+      // Har qavatda biroz torayadi
+      if (lv.isEven) {
+        x += 0.8;
+        w -= 1.2;
+      } else {
+        z += 0.6;
+        d -= 1.0;
       }
     }
-    final p = Offset(s * 0.5, s * 0.22);
-    c.drawCircle(p, r * (1 + t * 2.5), Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3 * (1 - t)
-      ..color = const Color(0xFFFFD740).withValues(alpha: 1 - t));
   }
 
   void _walls(Canvas c, double s) {
