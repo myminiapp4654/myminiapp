@@ -161,4 +161,71 @@ void main() {
     expect(find.text('🥇'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
   });
+
+  test("onlayn: yurishlar (siljishlar) bo'yicha minora boshqa telefonda aynan tiklanadi", () {
+    final a = StackGame();
+    final bot = StackBot(2, Random(9));
+    final moves = <double>[];
+    var t = 0.0;
+    while (!a.over && t < 300) {
+      a.update(1 / 60);
+      t += 1 / 60;
+      if (bot.update(a, 1 / 60)) {
+        moves.add(a.offset);
+        a.place();
+      }
+    }
+    final b = StackGame();
+    for (final m in moves) {
+      b.offset = m;
+      b.update(0);
+      b.place();
+    }
+    expect(b.score, a.score);
+    expect(b.over, isTrue);
+    for (var k = 0; k < a.tower.length; k++) {
+      expect(b.tower[k].x, closeTo(a.tower[k].x, 1e-9));
+      expect(b.tower[k].w, closeTo(a.tower[k].w, 1e-9));
+      expect(b.tower[k].d, closeTo(a.tower[k].d, 1e-9));
+    }
+  });
+
+  testWidgets("onlayn musobaqa: mening yurishim yuboriladi, raqibniki qo'llanadi", (t) async {
+    t.view.physicalSize = const Size(1080, 2400);
+    t.view.devicePixelRatio = 2.5;
+    addTearDown(t.view.reset);
+    final sent = <double>[];
+    var over = false;
+    final friend = StackLane("Do'st", id: 'tg2');
+    await t.pumpWidget(MaterialApp(
+      home: StackRaceScreen(
+        lanes: [StackLane('Men', isMe: true, id: 'tg1'), friend],
+        countdown: 1,
+        onPlace: sent.add,
+        onOver: () => over = true,
+      ),
+    ));
+    for (var k = 0; k < 30; k++) {
+      await t.pump(const Duration(milliseconds: 50));
+    }
+    await t.tap(find.byKey(const ValueKey('stack-race')));
+    await t.pump(const Duration(milliseconds: 50));
+    expect(sent.length, 1);
+    // Do'st ikkita aniq blok qo'ydi
+    friend.pendingMoves.addAll([0.0, 0.0]);
+    await t.pump(const Duration(milliseconds: 50));
+    expect(friend.game.score, 2);
+    expect(find.text('2'), findsWidgets);
+    // Do'st chiqib ketdi — uning minorasi "yiqildi"
+    friend.gone = true;
+    await t.pump(const Duration(milliseconds: 50));
+    expect(friend.alive, isFalse);
+    // Men ham yiqilaman
+    for (var k = 0; k < 30 && !over; k++) {
+      await t.tap(find.byKey(const ValueKey('stack-race')));
+      await t.pump(const Duration(milliseconds: 150));
+    }
+    expect(over, isTrue);
+    await t.pumpWidget(const SizedBox());
+  });
 }

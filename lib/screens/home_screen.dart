@@ -8,6 +8,7 @@ import '../games/chess/chess_screen.dart';
 import '../games/maze/maze_screen.dart';
 import '../games/snake/snake_screen.dart';
 import '../games/snakes/snakes_screen.dart';
+import '../games/stack/stack_online_screen.dart';
 import '../games/stack/stack_race_screen.dart';
 import '../games/stack/stack_screen.dart';
 import '../games/walls/walls_screen.dart';
@@ -138,8 +139,10 @@ final _games = <_GameInfo>[
   _GameInfo('Stack', 'Minora musobaqasi', GameArt.stack,
       const [Color(0xFF3D7BD9), Color(0xFF14254A)],
       (context) async {
-    final s = await showStackSetup(context);
+    final admin = kDebugMode || (ServerClient.instance.user.value?.admin ?? false);
+    final s = await showStackSetup(context, allowOnline: admin);
     if (s == null || !context.mounted) return;
+    if (s.online) return StackOnlineScreen.create(context);
     await _push(context, s.race ? StackRaceScreen(bots: s.bots, level: s.level) : const StackScreen());
   }),
   _GameInfo('Escape the Walls', 'Devor buzish', GameArt.walls,
@@ -159,6 +162,23 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  /// Taklif havolasi bilan ochilgan bo'lsa — bir marta xonaga o'tamiz.
+  static bool _startHandled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final start = Telegram.startParam;
+    if (!_startHandled && start != null && start.startsWith(kStackLinkPrefix)) {
+      _startHandled = true;
+      final code = start.substring(kStackLinkPrefix.length);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => StackOnlineScreen(code: code)));
+      });
+    }
+  }
+
   late final AnimationController _intro =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
         ..forward();

@@ -11,9 +11,12 @@ import 'stack_art.dart';
 import 'stack_bot.dart';
 import 'stack_game.dart';
 
-/// Stack sozlamalari: yolg'iz (rekord uchun) yoki musobaqa.
-Future<({bool race, int bots, int level})?> showStackSetup(BuildContext context) {
+/// Stack sozlamalari: musobaqa (kompyuter), yolg'iz (rekord) yoki — faqat admin uchun —
+/// do'stlar bilan onlayn.
+Future<({bool race, bool online, int bots, int level})?> showStackSetup(BuildContext context,
+    {bool allowOnline = false}) {
   var race = true;
+  var online = false;
   var bots = 2;
   var level = 2;
   const blue = Color(0xFF4FC3F7);
@@ -21,33 +24,50 @@ Future<({bool race, int bots, int level})?> showStackSetup(BuildContext context)
     context,
     title: 'Stack',
     colors: const [Color(0xFF4FC3F7), Color(0xFF7C4DFF)],
-    onStart: () => (race: race, bots: bots, level: level),
+    onStart: () => (race: race && !online, online: online, bots: bots, level: level),
     builder: (ctx, setState) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SetupLabel('Rejim'),
         ChoiceRow(children: [
           ChoiceCard(
-            selected: race,
+            selected: race && !online,
             color: blue,
-            icon: const Icon(Icons.groups_rounded, color: Colors.white, size: 36),
+            icon: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 36),
             label: 'Musobaqa',
-            hint: 'yonma-yon minoralar',
-            onTap: () => setState(() => race = true),
+            hint: 'kompyuterlar bilan',
+            onTap: () => setState(() {
+              race = true;
+              online = false;
+            }),
           ),
           ChoiceCard(
-            selected: !race,
+            selected: !race && !online,
             color: blue,
             icon: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 36),
             label: "Yolg'iz",
             hint: 'rekordlar jadvali',
-            onTap: () => setState(() => race = false),
+            onTap: () => setState(() {
+              race = false;
+              online = false;
+            }),
           ),
         ]),
+        if (allowOnline) ...[
+          const SizedBox(height: 10),
+          ChoiceCard(
+            selected: online,
+            color: const Color(0xFF66BB6A),
+            icon: const Icon(Icons.wifi_rounded, color: Colors.white, size: 36),
+            label: "Do'stlar bilan (onlayn)",
+            hint: 'xona oching va havola yuboring',
+            onTap: () => setState(() => online = true),
+          ),
+        ],
         AnimatedSize(
           duration: const Duration(milliseconds: 280),
           curve: Curves.easeOutCubic,
-          child: !race
+          child: !race || online
               ? const SizedBox(width: double.infinity)
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -81,6 +101,18 @@ class StackLane {
   final StackBot? bot;
   final StackGame game = StackGame();
 
+  /// Onlayn o'yinchi (Telegram uid). Uning yurishlari [pendingMoves] ga keladi.
+  final String? id;
+
+  /// Serverdan kelgan, hali qo'llanmagan yurishlar (blok siljishlari).
+  final pendingMoves = <double>[];
+
+  /// Nechta yurish allaqachon navbatga qo'yilgan.
+  int received = 0;
+
+  /// O'yinchi xonadan chiqib ketdi.
+  bool gone = false;
+
   /// Kamera balandligi (silliq).
   double cam = 0;
 
@@ -90,7 +122,7 @@ class StackLane {
   /// "Zo'r!" effekti.
   double perfectAt = -10;
 
-  StackLane(this.name, {this.isMe = false, this.bot});
+  StackLane(this.name, {this.isMe = false, this.bot, this.id});
 
   bool get alive => !game.over;
 }
@@ -101,7 +133,26 @@ class StackRaceScreen extends StatefulWidget {
   final int level;
   final int? seed;
 
-  const StackRaceScreen({super.key, this.bots = 2, this.level = 2, this.seed});
+  /// Onlayn: tayyor yo'laklar (birinchisi — siz), sanoq va server bilan aloqa.
+  final List<StackLane>? lanes;
+  final double countdown;
+  final void Function(double offset)? onPlace;
+  final VoidCallback? onOver;
+  final VoidCallback? onAgain;
+  final String title;
+
+  const StackRaceScreen({
+    super.key,
+    this.bots = 2,
+    this.level = 2,
+    this.seed,
+    this.lanes,
+    this.countdown = 3,
+    this.onPlace,
+    this.onOver,
+    this.onAgain,
+    this.title = 'Stack — musobaqa',
+  });
 
   @override
   State<StackRaceScreen> createState() => _StackRaceScreenState();
@@ -118,7 +169,7 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
   double _time = 0;
 
   /// Boshlanishdan oldingi sanoq (3-2-1).
-  double _countdown = 3;
+  late double _countdown = widget.countdown;
   double? _endedAt;
 
   StackLane get _me => _lanes.first;
@@ -128,7 +179,7 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
     return n.isEmpty ? 'Siz' : n;
   }
 
-  List<StackLane> _newLanes() => [
+  List<StackLane> _newLanes() => widget.lanes ?? [
         StackLane(_myName(), isMe: true),
         for (var k = 0; k < widget.bots; k++)
           StackLane(_botNames[k], bot: StackBot(widget.level, Random(_rnd.nextInt(1 << 30)))),
@@ -160,6 +211,16 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
     for (final l in _lanes) {
       final wasAlive = l.alive;
       l.game.update(dt);
+      // Onlayn raqib: serverdan kelgan yurishlarni aynan o'sha siljishda qo'yamiz
+      if (!l.isMe && l.bot == null) {
+        while (l.alive && l.pendingMoves.isNotEmpty) {
+          final g = l.game;
+          g.offset = l.pendingMoves.removeAt(0);
+          g.update(0);
+          if (g.place() == StackResult.perfect) l.perfectAt = g.time;
+        }
+        if (l.gone && l.alive) l.game.over = true;
+      }
       if (l.alive && l.bot != null && l.bot!.update(l.game, dt)) {
         if (l.game.place() == StackResult.perfect) l.perfectAt = l.game.time;
       }
@@ -197,6 +258,7 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
   void _tap() {
     final g = _me.game;
     if (_countdown > 0 || g.over) return;
+    widget.onPlace?.call(g.offset);
     switch (g.place()) {
       case StackResult.perfect:
         HapticFeedback.mediumImpact();
@@ -205,10 +267,15 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
         HapticFeedback.selectionClick();
       case StackResult.missed:
         HapticFeedback.heavyImpact();
+        widget.onOver?.call();
     }
   }
 
   void _again() {
+    if (widget.onAgain != null) {
+      widget.onAgain!();
+      return;
+    }
     setState(() {
       _lanes = _newLanes();
       _countdown = 3;
@@ -228,7 +295,7 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     final meAlive = _me.alive;
     return GameScaffold(
-      title: 'Stack — musobaqa',
+      title: widget.title,
       palette: GamePalette.stack,
       body: GestureDetector(
         key: const ValueKey('stack-race'),
@@ -393,7 +460,7 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
             right: 6,
             child: Row(
               children: [
-                Icon(Icons.smart_toy_rounded, color: color, size: 12),
+                Icon(l.bot == null ? Icons.person_rounded : Icons.smart_toy_rounded, color: color, size: 12),
                 const SizedBox(width: 3),
                 Expanded(
                   child: Text(l.name,
@@ -461,7 +528,7 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(l.isMe ? Icons.person_rounded : Icons.smart_toy_rounded, color: color, size: 14),
+                      Icon(l.isMe || l.bot == null ? Icons.person_rounded : Icons.smart_toy_rounded, color: color, size: 14),
                       const SizedBox(width: 3),
                       Flexible(
                         child: Text(
