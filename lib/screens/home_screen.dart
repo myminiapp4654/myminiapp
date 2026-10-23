@@ -23,10 +23,21 @@ class _HomeScreenState extends State<HomeScreen> {
   final _codeController = TextEditingController();
   bool _loading = false;
 
+  /// Ilova yopilib qayta ochilganda — avvalgi xona
+  String? _activeRoom;
+
   @override
   void initState() {
     super.initState();
     _joinFromTelegramLink();
+    _checkActiveRoom();
+  }
+
+  Future<void> _checkActiveRoom() async {
+    try {
+      final code = await _roomService.myRoom();
+      if (mounted) setState(() => _activeRoom = code);
+    } catch (_) {}
   }
 
   @override
@@ -48,12 +59,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _openRoom(String code, bool isHost) {
-    Navigator.push(
+  Future<void> _openRoom(String code, bool isHost) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
           builder: (_) => RoomScreen(roomCode: code, isHost: isHost)),
     );
+    _checkActiveRoom();
   }
 
   Future<void> _create() async {
@@ -111,6 +123,14 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+          if (_activeRoom != null)
+            Card(
+              child: ListTile(
+                title: Text('Siz xonadasiz: $_activeRoom'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openRoom(_activeRoom!, false),
+              ),
+            ),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _loading ? null : _create,

@@ -80,7 +80,7 @@ void main() {
       devLogin: devLogin,
       botUsername: 'oyinim_bot',
       appShortName: 'play',
-    );
+    )..onPresence = (uid, online) => updatePresence(store, uid, online);
     return io.serve(webSocketHandler((ws, _) => hub.handle(ws)),
         InternetAddress.loopbackIPv4, 0);
   }
@@ -131,5 +131,49 @@ void main() {
     await ali.close();
     await vali.close();
     await guest.close();
+  });
+
+  test("X-O: WebSocket orqali to'liq o'yin va raqib uzilishi", () async {
+    server = await start(devLogin: true);
+    final ali = await TestClient.connect(server.port);
+    final vali = await TestClient.connect(server.port);
+    await ali.login('Ali', 'a1');
+    await vali.login('Vali', 'v1');
+
+    final room = await ali.call('room.create') as String;
+    final topic = 'rooms/$room';
+    await ali.watch(topic);
+    await vali.call('room.join', {'code': room});
+    await vali.watch(topic);
+
+    await ali.call('room.invite', {
+      'code': room,
+      'game': 'xo',
+      'options': {'size': 3},
+    });
+    await vali.waitDoc(topic, (d) => d!['invite'] != null);
+    await vali.call('room.accept', {'code': room});
+    await ali.waitDoc(topic, (d) => d!['game'] != null);
+
+    // Navbat bilan: Ali 0,1,2 — g'alaba
+    for (final (c, i) in [(ali, 0), (vali, 3), (ali, 1), (vali, 4), (ali, 2)]) {
+      await c.call('xo.move', {'code': room, 'index': i});
+    }
+    final done = await vali.waitDoc(
+        topic, (d) => (d!['game'] as Map?)?['status'] == 'finished');
+    expect(done!['game']['winner'], 'X');
+    expect(done['game']['line'], [0, 1, 2]);
+
+    // Navbatsiz yurish serverda rad etiladi
+    await expectLater(
+        vali.call('xo.move', {'code': room, 'index': 5}), throwsA(isA<GameError>()));
+
+    // Vali ilovani yopsa — Ali "aloqada emas"ni ko'radi
+    await vali.close();
+    final off = await ali.waitDoc(
+        topic, (d) => d!['players']['dev_v1']['online'] == false);
+    expect(off, isNotNull);
+
+    await ali.close();
   });
 }

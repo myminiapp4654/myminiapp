@@ -79,6 +79,10 @@ class Store {
 
   int get docCount => _docs.length;
 
+  /// Kolleksiyadagi barcha hujjat yo'llari (masalan, rooms/ABC123).
+  List<String> pathsIn(String collection) =>
+      _docs.keys.where((k) => k.startsWith('$collection/')).toList();
+
   void _changed(String path) {
     final data = _docs[path];
     for (final l in _listeners) {

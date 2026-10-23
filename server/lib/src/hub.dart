@@ -39,6 +39,10 @@ class Hub {
 
   final _sessions = <_Session>{};
   final _watchers = <String, Set<_Session>>{};
+  final _onlineByUid = <String, int>{};
+
+  /// Foydalanuvchi onlayn/oflayn bo'lganda (birinchi ulanish / oxirgi uzilish).
+  void Function(String uid, bool online)? onPresence;
 
   Hub({
     required this.db,
@@ -65,7 +69,17 @@ class Hub {
   }
 
   void _drop(_Session s) {
-    _sessions.remove(s);
+    if (!_sessions.remove(s)) return;
+    final uid = s.uid;
+    if (uid != null) {
+      final n = (_onlineByUid[uid] ?? 1) - 1;
+      if (n <= 0) {
+        _onlineByUid.remove(uid);
+        onPresence?.call(uid, false);
+      } else {
+        _onlineByUid[uid] = n;
+      }
+    }
     for (final path in s.subs.keys) {
       _watchers[path]?.remove(s);
       if (_watchers[path]?.isEmpty ?? false) _watchers.remove(path);
@@ -127,8 +141,14 @@ class Hub {
       return;
     }
 
+    final firstAuth = s.uid == null;
     s.uid = uid;
     s.name = name;
+    if (firstAuth) {
+      final n = (_onlineByUid[uid] ?? 0) + 1;
+      _onlineByUid[uid] = n;
+      if (n == 1) onPresence?.call(uid, true);
+    }
 
     final path = 'users/$uid';
     final u = db.get(path) ?? {'uid': uid};

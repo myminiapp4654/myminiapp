@@ -41,7 +41,7 @@ Future<void> main() async {
     devLogin: devLogin,
     botUsername: botUsername,
     appShortName: appShortName,
-  );
+  )..onPresence = (uid, online) => updatePresence(store, uid, online);
 
   // /start ga javob beradigan bot (ochiq manzil ma'lum bo'lsa)
   final bot = botToken.isNotEmpty && publicUrl.startsWith('https://')
