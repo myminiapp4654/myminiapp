@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1095410537471",
+    "project_id": "online-game-9f0e5",
+    "storage_bucket": "online-game-9f0e5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1095410537471:android:4bec00a3633e40a7958dca",
+        "android_client_info": {
+          "package_name": "com.example.onlinegame"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5xnK9V3KKUd_FzYpa3k0QGB_ftaQuoUM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
