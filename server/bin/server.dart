@@ -75,7 +75,7 @@ Future<void> main() async {
       );
     }
     if (staticHandler == null) {
-      return Response.ok('Oyinim server ishlayapti (web build topilmadi)');
+      return Response.ok('Break Time server ishlayapti (web build topilmadi)');
     }
 
     final res = await staticHandler(req);
@@ -100,7 +100,7 @@ Future<void> main() async {
       const Pipeline().addMiddleware(_logErrors()).addHandler(handler);
   final server = await io.serve(pipeline, InternetAddress.anyIPv4, port);
   server.autoCompress = true;
-  stdout.writeln('Oyinim server: http://localhost:${server.port}'
+  stdout.writeln('Break Time server: http://localhost:${server.port}'
       '${botUsername != null ? '  (bot: @$botUsername)' : ''}'
       '${devLogin ? '  [DEV_LOGIN yoqilgan]' : ''}');
 

@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-/// Oyinim dizayn to'plami: hamma o'yinlar uchun umumiy fon, panel, tugma,
+/// Break Time dizayn to'plami: hamma o'yinlar uchun umumiy fon, panel, tugma,
 /// o'yinchi belgisi va g'alaba ekrani.
 
 class GamePalette {

@@ -72,7 +72,7 @@ class _StartScreenState extends State<StartScreen> {
                         duration: const Duration(milliseconds: 900),
                         curve: Curves.elasticOut,
                         builder: (_, v, child) => Transform.scale(scale: v, child: child),
-                        child: const GlowText('OYINIM', size: 44, color: Color(0xFFB9AEFF)),
+                        child: const GlowText('BREAK TIME', size: 40, color: Color(0xFFB9AEFF)),
                       ),
                       const SizedBox(height: 6),
                       const Text("Do'stlar bilan o'yinlar",

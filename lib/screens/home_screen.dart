@@ -126,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final name = ServerClient.instance.user.value?.name;
     return GameScaffold(
-      title: 'OYINIM',
+      title: 'BREAK TIME',
       palette: GamePalette.home,
       body: CustomScrollView(
         slivers: [

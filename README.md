@@ -1,4 +1,4 @@
-# Oyinim — Telegram Mini App
+# Break Time — Telegram Mini App
 
 Telegram ichida do'stlar bilan o'ynash uchun Mini App. Hozircha asos: Telegram orqali kirish va 2 kishilik xonalar. O'yinlar keyin qo'shiladi (oldingi versiyasi `games-before-removal` tegida).
 

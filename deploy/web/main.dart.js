@@ -92044,7 +92044,7 @@ a.dW(n,r,q)},
 cm(a){return a.d!==this.d}}
 A.Mo.prototype={
 H(a){var s=null
-return new A.Aa($.aKL(),B.Zh,new A.aa6(),"Oyinim",A.vn(B.DI,s,A.aC4(B.as,s,s,B.kC,B.Hw),new A.oQ(B.ph,s,s,s,new A.cN(A.bJ(24),B.w),s,s,s,s,s,s,s,s,s),s,s,B.kt,B.Z4,!0),!1,s)}}
+return new A.Aa($.aKL(),B.Zh,new A.aa6(),"Break Time",A.vn(B.DI,s,A.aC4(B.as,s,s,B.kC,B.Hw),new A.oQ(B.ph,s,s,s,new A.cN(A.bJ(24),B.w),s,s,s,s,s,s,s,s,s),s,s,B.kt,B.Z4,!0),!1,s)}}
 A.aa6.prototype={
 $2(a,b){b.toString
 return new A.tf(b,null)},
@@ -92272,7 +92272,7 @@ s=t.p
 r=A.bO(A.b([A.aZ(o==null?"Salom! \ud83d\udc4b":"Salom, "+o+"! \ud83d\udc4b",q,q,q,q,B.a_4,q,q),B.he,B.a3C],s),B.aN,B.p,B.H)
 $.aBc()
 s=A.b([new A.v1(B.K1,new A.OO(new A.cJ(p,!1,r,q),q),q),new A.v1(B.JT,A.aEQ(new A.OJ(new A.aon(this),8,!0,!0,!0,q),B.YX),q)],s)
-return A.my(q,new A.K7(s,B.a7,!1,q,q,B.hs,q,!1,q,0,q,q,B.jo,B.a3,q,q,B.D,B.aJ,q),B.qk,"OYINIM")}}
+return A.my(q,new A.K7(s,B.a7,!1,q,q,B.hs,q,!1,q,0,q,q,B.jo,B.a3,q,q,B.D,B.aJ,q),B.qk,"BREAK TIME")}}
 A.aon.prototype={
 $2(a,b){var s=B.d.c5(b*0.08,0,0.6),r=this.a,q=A.bS(new A.dj(s,s+0.4,B.kL),r.gEV(),null)
 return A.eR(q,new A.aom(q),new A.EM($.aBc()[b],r.gQj(),null))},
@@ -97275,7 +97275,7 @@ B.iv=new A.zm(1,"possible")
 B.KK=new A.zm(2,"defunct")
 B.KL=new A.iI("Qochib chiqdingiz!",30,B.e4,null)
 B.oA=new A.i(1,0.7254901960784313,0.6823529411764706,1,B.c)
-B.KM=new A.iI("OYINIM",44,B.oA,null)
+B.KM=new A.iI("BREAK TIME",40,B.oA,null)
 B.iw=new A.L7(0,"forward")
 B.qm=new A.L7(1,"reverse")
 B.ej=new A.tH(0,"push")
