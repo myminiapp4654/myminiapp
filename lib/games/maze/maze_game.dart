@@ -4,8 +4,9 @@ import 'dart:math';
 ///
 /// Labirint kvadrat kataklardan iborat: har bir katak yo devor, yo yo'lak.
 /// [n] xonali labirint (2n+1)×(2n+1) katakka chiziladi. Tepada kirish,
-/// pastda chiqish. Siz barmoq bilan yo'l chizasiz, kompyuter esa
-/// yo'lni qidirib (boshi berk ko'chalarga kirib-chiqib) boradi.
+/// pastda chiqish. Siz surib boshqarasiz: o'yinchi devorgacha yoki birinchi
+/// burilishgacha o'zi yuradi. Kompyuter esa yo'lni qidirib (boshi berk
+/// ko'chalarga kirib-chiqib) boradi.
 class Maze {
   final int size; // kataklar soni (bir tomonda)
   final List<bool> wall;
@@ -124,113 +125,65 @@ class Maze {
   }
 }
 
-/// Barmoq bilan chizilayotgan yo'l.
+/// O'yinchi: surilgan tomonga sirpanib yuradi.
 ///
-/// Yo'l — qo'shni (yonma-yon) yo'lak kataklari ketma-ketligi. Barmoq har
-/// siljiganda oraliq nuqtalar ham tekshiriladi: tez sursangiz ham devorni
-/// "sakrab" o'tib bo'lmaydi.
-class PlayerPath {
+/// To'xtaydi: devorga yetganda, chiqishga yetganda yoki yonida burilish
+/// (yon tomonga ochiq yo'l) chiqqanda — burilishdan o'tib ketmaslik uchun.
+class MazeWalker {
   final Maze maze;
+
+  /// Bosib o'tilgan yo'l (orqaga qaytilsa — qisqaradi).
   final cells = <int>[];
 
-  /// Hozir barmoq chizyaptimi (devorga tegsa — uziladi).
-  bool drawing = false;
-
-  /// Oxirgi barmoq nuqtasi (katak birligida).
-  double _lx = 0, _ly = 0;
-
-  PlayerPath(this.maze) {
+  MazeWalker(this.maze) {
     cells.add(maze.start);
   }
 
-  int get end => cells.last;
-  bool get finished => end == maze.exit;
+  int get at => cells.last;
+  bool get finished => at == maze.exit;
 
-  /// Barmoq qo'yildi. Yo'l ustiga (yoki uchiga yaqin) qo'yilsa — chizish boshlanadi
-  /// va yo'l o'sha joygacha qisqaradi.
-  bool begin(double x, double y) {
-    if (finished) return false;
-    final r = y.floor(), c = x.floor();
-    var hit = -1;
-    // Barmoq ostidagi katak yoki uning qo'shnisi yo'lda bo'lsa
-    for (final (dr, dc) in const [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]) {
-      final i = (r + dr) * maze.size + (c + dc);
-      if (maze.isWall(r + dr, c + dc)) continue;
-      final at = cells.lastIndexOf(i);
-      if (at > hit) hit = at;
+  /// [dr],[dc] tomonga yurish mumkinmi.
+  bool canGo(int dr, int dc) =>
+      !maze.isWall(maze.row(at) + dr, maze.col(at) + dc);
+
+  /// Shu tomonga sirpanganda bosib o'tiladigan kataklar (bo'sh — yurib bo'lmaydi).
+  List<int> slide(int dr, int dc) {
+    final out = <int>[];
+    var r = maze.row(at), c = maze.col(at);
+    while (!maze.isWall(r + dr, c + dc)) {
+      r += dr;
+      c += dc;
+      final i = r * maze.size + c;
+      out.add(i);
+      if (i == maze.exit) break;
+      // Yonida ochiq yo'l — burilish joyi, to'xtaymiz
+      final side = dr != 0
+          ? !maze.isWall(r, c - 1) || !maze.isWall(r, c + 1)
+          : !maze.isWall(r - 1, c) || !maze.isWall(r + 1, c);
+      if (side) break;
     }
-    if (hit < 0) return false;
-    cells.removeRange(hit + 1, cells.length);
-    drawing = true;
-    _lx = maze.col(end) + 0.5;
-    _ly = maze.row(end) + 0.5;
-    return true;
+    return out;
   }
 
-  /// Barmoq siljidi. Devorga tegsa false qaytaradi va chizish uziladi.
-  bool move(double x, double y) {
-    if (!drawing) return true;
-    final dx = x - _lx, dy = y - _ly;
-    final steps = max(1, (sqrt(dx * dx + dy * dy) / 0.2).ceil());
-    for (var k = 1; k <= steps; k++) {
-      final px = _lx + dx * k / steps, py = _ly + dy * k / steps;
-      final r = py.floor(), c = px.floor();
-      if (maze.isWall(r, c)) {
-        drawing = false;
-        return false;
-      }
-      if (!_enter(r * maze.size + c)) {
-        drawing = false;
-        return false;
-      }
-      if (finished) {
-        drawing = false;
-        return true;
-      }
+  /// Qo'shni katakka o'tish (iz yangilanadi).
+  void step(int i) {
+    if (cells.length >= 2 && cells[cells.length - 2] == i) {
+      cells.removeLast(); // orqaga qaytdi — iz o'chadi
+      return;
     }
-    _lx = x;
-    _ly = y;
-    return true;
-  }
-
-  void stop() => drawing = false;
-
-  /// Yangi katakka o'tish. Orqaga qaytsa — yo'l qisqaradi.
-  bool _enter(int i) {
-    if (i == end) return true;
-    final back = cells.length >= 2 ? cells[cells.length - 2] : -1;
-    if (i == back) {
-      cells.removeLast();
-      return true;
-    }
-    final r0 = maze.row(end), c0 = maze.col(end);
-    final r1 = maze.row(i), c1 = maze.col(i);
-    final dr = r1 - r0, dc = c1 - c0;
-    if (dr.abs() + dc.abs() == 1) {
-      _push(i);
-      return true;
-    }
-    // Diagonal: burchakdan kesib o'tmaslik uchun oradagi ochiq katak orqali
-    if (dr.abs() == 1 && dc.abs() == 1) {
-      for (final (mr, mc) in [(r0 + dr, c0), (r0, c0 + dc)]) {
-        if (!maze.isWall(mr, mc)) {
-          _enter(mr * maze.size + mc);
-          _enter(i);
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  void _push(int i) {
-    // Halqa bo'lsa — o'sha joygacha qisqartiramiz
     final at = cells.indexOf(i);
     if (at >= 0) {
       cells.removeRange(at + 1, cells.length);
     } else {
       cells.add(i);
     }
+  }
+
+  /// Sirpanishni darhol bajarish (testlar va hisob-kitob uchun).
+  List<int> go(int dr, int dc) {
+    final path = slide(dr, dc);
+    path.forEach(step);
+    return path;
   }
 }
 

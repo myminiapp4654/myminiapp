@@ -12,16 +12,13 @@ void main() {
     for (var k = 0; k < 30; k++) {
       await t.pump(const Duration(milliseconds: 100));
     }
-    // Biroz chizamiz: kirishdan pastga
-    final rect = t.getRect(find.byKey(const ValueKey('maze')));
-    final cell = rect.width / 29;
-    final g = await t.startGesture(rect.topLeft + Offset(cell * 1.5, cell * 0.5));
-    for (var k = 0; k < 40; k++) {
-      await t.pump(const Duration(milliseconds: 100));
-    }
-    await g.up();
-    for (var k = 0; k < 60; k++) {
-      await t.pump(const Duration(milliseconds: 100));
+    // Bir necha marta suramiz
+    final c = t.getCenter(find.byKey(const ValueKey('maze')));
+    for (final d in const [Offset(0, 60), Offset(60, 0), Offset(0, 60), Offset(-60, 0), Offset(0, 60)]) {
+      await t.dragFrom(c, d);
+      for (var k = 0; k < 15; k++) {
+        await t.pump(const Duration(milliseconds: 60));
+      }
     }
     await expectLater(find.byKey(const ValueKey('shot')), matchesGoldenFile('out/maze_play.png'));
     await t.pumpWidget(const SizedBox());

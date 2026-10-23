@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-import '../../telegram/telegram.dart';
 import '../../ui/kit.dart';
 import 'maze_game.dart';
 
@@ -13,7 +12,7 @@ const _aiColor = Color(0xFF4CFF7A);
 
 enum _Stage { ready, countdown, playing, won, lost }
 
-/// Labirint musobaqasi: siz barmoq bilan yo'l chizasiz, kompyuter qidiradi.
+/// Labirint musobaqasi: siz surib yurasiz, kompyuter yo'l qidiradi.
 class MazeScreen extends StatefulWidget {
   /// 1 — oson (25×25), 2 — o'rta (29×29), 3 — qiyin (33×33)
   final int level;
@@ -32,7 +31,7 @@ class _MazeScreenState extends State<MazeScreen> with TickerProviderStateMixin {
   late final Random _rnd = Random(widget.seed);
   late Maze _maze =
       widget.initialMaze ?? Maze.generate(Maze.roomsFor(widget.level), _rnd);
-  late PlayerPath _path = PlayerPath(_maze);
+  late MazeWalker _me = MazeWalker(_maze);
   late MazeRunner _ai = MazeRunner(_maze, widget.level, _rnd);
 
   _Stage _stage = _Stage.ready;
@@ -44,21 +43,31 @@ class _MazeScreenState extends State<MazeScreen> with TickerProviderStateMixin {
   double _aiDebt = 0;
   final _clock = Stopwatch();
 
-  /// Devorga tegilganda qizil miltillash.
-  late final AnimationController _flash = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 450),
-  );
-  int _hits = 0;
+  /// O'yinchi yurishi: navbatdagi kataklar va joriy katakdan keyingisigacha qism.
+  final _queue = <int>[];
+  double _moveT = 0;
+  static const _cellsPerSecond = 16.0;
 
-  /// Barmoq chiziq uchidan uzoqda qo'yildi — maslahat.
-  bool _hint = false;
+  /// Yurish paytida surilgan yo'nalish — to'xtagach bajariladi.
+  (int, int)? _pending;
+
+  /// Surishni aniqlash: bitta barmoq harakatida bir necha marta burish mumkin.
+  Offset _swipe = Offset.zero;
+  (int, int)? _swipeDir;
+
+  /// Devorga qarab surildi — qisqa silkinish.
+  late final AnimationController _bump = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  );
+  final _focus = FocusNode();
 
   @override
   void dispose() {
     _epoch++;
     _ticker.dispose();
-    _flash.dispose();
+    _bump.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -95,10 +104,11 @@ class _MazeScreenState extends State<MazeScreen> with TickerProviderStateMixin {
       ..reset();
     setState(() {
       _maze = Maze.generate(Maze.roomsFor(widget.level), _rnd);
-      _path = PlayerPath(_maze);
+      _me = MazeWalker(_maze);
       _ai = MazeRunner(_maze, widget.level, _rnd);
-      _hits = 0;
-      _hint = false;
+      _queue.clear();
+      _pending = null;
+      _moveT = 0;
     });
     _start();
   }
@@ -106,7 +116,7 @@ class _MazeScreenState extends State<MazeScreen> with TickerProviderStateMixin {
   void _finish(bool won) {
     _ticker.stop();
     _clock.stop();
-    _path.stop();
+    _queue.clear();
     HapticFeedback.heavyImpact();
     setState(() => _stage = won ? _Stage.won : _Stage.lost);
   }
@@ -115,6 +125,25 @@ class _MazeScreenState extends State<MazeScreen> with TickerProviderStateMixin {
     final dt = (now - _last).inMicroseconds / 1e6;
     _last = now;
     if (_stage != _Stage.playing) return;
+    // O'yinchi katakma-katak silliq yuradi
+    if (_queue.isNotEmpty) {
+      _moveT += dt.clamp(0, 0.1) * _cellsPerSecond;
+      while (_moveT >= 1 && _queue.isNotEmpty) {
+        _moveT -= 1;
+        _me.step(_queue.removeAt(0));
+      }
+      if (_me.finished) {
+        _finish(true);
+        return;
+      }
+      if (_queue.isEmpty) {
+        _moveT = 0;
+        HapticFeedback.selectionClick();
+        final next = _pending;
+        _pending = null;
+        if (next != null) _go(next.$1, next.$2);
+      }
+    }
     _aiDebt += dt.clamp(0, 0.1) * _ai.speed;
     while (_aiDebt >= 1 && !_ai.finished) {
       _aiDebt -= 1;
@@ -128,38 +157,65 @@ class _MazeScreenState extends State<MazeScreen> with TickerProviderStateMixin {
     }
   }
 
-  // ---------------------------------------------------------------- barmoq
+  // ---------------------------------------------------------------- boshqaruv
 
-  Offset _toCells(Offset local, double cell) => local / cell;
-
-  void _down(Offset local, double cell) {
+  /// Shu tomonga sirpanish (yurib turgan bo'lsa — to'xtagach).
+  void _go(int dr, int dc) {
     if (_stage != _Stage.playing) return;
-    final p = _toCells(local, cell);
-    final ok = _path.begin(p.dx, p.dy);
-    setState(() => _hint = !ok);
-  }
-
-  void _drag(Offset local, double cell) {
-    if (_stage != _Stage.playing || !_path.drawing) return;
-    final p = _toCells(local, cell);
-    final ok = _path.move(p.dx, p.dy);
-    if (!ok) {
-      // Devorga tegdi: chizish uziladi, ekran qizil miltillaydi
-      _hits++;
-      HapticFeedback.heavyImpact();
-      Telegram.haptic();
-      _flash.forward(from: 0);
-    }
-    if (_path.finished) {
-      _finish(true);
+    if (_queue.isNotEmpty) {
+      _pending = (dr, dc);
       return;
     }
-    setState(() {});
+    final path = _me.slide(dr, dc);
+    if (path.isEmpty) {
+      // Devor — o'yinchi biroz silkinadi
+      HapticFeedback.lightImpact();
+      _bump.forward(from: 0);
+      return;
+    }
+    _queue.addAll(path);
+    _moveT = 0;
   }
 
-  void _up() {
-    _path.stop();
-    setState(() {});
+  void _panStart() {
+    _swipe = Offset.zero;
+    _swipeDir = null;
+  }
+
+  /// Barmoq yetarlicha surilganda yo'nalish aniqlanadi. Barmoqni ko'tarmay
+  /// boshqa tomonga sursangiz — yana buriladi.
+  void _panUpdate(Offset delta) {
+    _swipe += delta;
+    if (_swipe.distance < 18) return;
+    final dir = _swipe.dx.abs() > _swipe.dy.abs()
+        ? (0, _swipe.dx > 0 ? 1 : -1)
+        : (_swipe.dy > 0 ? 1 : -1, 0);
+    _swipe = Offset.zero;
+    if (dir == _swipeDir) return;
+    _swipeDir = dir;
+    _go(dir.$1, dir.$2);
+  }
+
+  KeyEventResult _key(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent) return KeyEventResult.ignored;
+    final dir = switch (e.logicalKey) {
+      LogicalKeyboardKey.arrowUp => (-1, 0),
+      LogicalKeyboardKey.arrowDown => (1, 0),
+      LogicalKeyboardKey.arrowLeft => (0, -1),
+      LogicalKeyboardKey.arrowRight => (0, 1),
+      _ => null,
+    };
+    if (dir == null) return KeyEventResult.ignored;
+    _go(dir.$1, dir.$2);
+    return KeyEventResult.handled;
+  }
+
+  /// O'yinchining ekrandagi joyi (katak birligida, harakat silliq).
+  Offset get _pawn {
+    Offset c(int i) => Offset(_maze.col(i) + 0.5, _maze.row(i) + 0.5);
+    final from = c(_me.at);
+    if (_queue.isEmpty) return from;
+    return Offset.lerp(from, c(_queue.first), _moveT.clamp(0.0, 1.0))!;
   }
 
   // ---------------------------------------------------------------- ekran
@@ -175,193 +231,195 @@ class _MazeScreenState extends State<MazeScreen> with TickerProviderStateMixin {
     return GameScaffold(
       title: 'Labirint',
       palette: GamePalette.maze,
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-                child: Row(
-                  children: [
-                    const PlayerBadge(
-                      color: _playerColor,
-                      name: 'Siz',
-                      active: true,
-                      avatar: Icon(
-                        Icons.person_rounded,
-                        color: Colors.white,
-                        size: 18,
+      body: Focus(
+        focusNode: _focus,
+        autofocus: true,
+        onKeyEvent: _key,
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                  child: Row(
+                    children: [
+                      const PlayerBadge(
+                        color: _playerColor,
+                        name: 'Siz',
+                        active: true,
+                        avatar: Icon(
+                          Icons.person_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          _time,
-                          key: const ValueKey('time'),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            _time,
+                            key: const ValueKey('time'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const PlayerBadge(
-                      color: _aiColor,
-                      name: 'Kompyuter',
-                      avatar: Icon(
-                        Icons.smart_toy_rounded,
-                        color: Colors.white,
-                        size: 18,
+                      const PlayerBadge(
+                        color: _aiColor,
+                        name: 'Kompyuter',
+                        avatar: Icon(
+                          Icons.smart_toy_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  height: 24,
+                  child: const Text(
+                    "Suring — devorgacha yoki burilishgacha yuradi",
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, box) {
+                      final side = min(box.maxWidth - 16, box.maxHeight - 40);
+                      final cell = side / size;
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _gateLabel(
+                              'KIRISH',
+                              _maze.col(_maze.start),
+                              cell,
+                              side,
+                              const Color(0xFF7CF5C4),
+                            ),
+                            SizedBox(
+                              width: side,
+                              height: side,
+                              child: GestureDetector(
+                                key: const ValueKey('maze'),
+                                behavior: HitTestBehavior.opaque,
+                                onPanStart: (_) => _panStart(),
+                                onPanUpdate: (d) => _panUpdate(d.delta),
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: RepaintBoundary(
+                                        child: CustomPaint(
+                                          painter: _MazePainter(_maze),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned.fill(
+                                      child: AnimatedBuilder(
+                                        animation: _bump,
+                                        builder: (_, _) => CustomPaint(
+                                          painter: _LinesPainter(
+                                            _maze,
+                                            _me.cells,
+                                            _ai.stack,
+                                            _ai.visited,
+                                            pawn: _pawn,
+                                            // Devorga urilganda silkinish
+                                            shake: _bump.isAnimating
+                                                ? sin(_bump.value * pi * 4) *
+                                                      (1 - _bump.value)
+                                                : 0,
+                                            // To'xtab turganda — qayerga yurish mumkinligi
+                                            exits:
+                                                _queue.isEmpty &&
+                                                    _stage == _Stage.playing
+                                                ? [
+                                                    for (final d in const [
+                                                      (-1, 0),
+                                                      (1, 0),
+                                                      (0, -1),
+                                                      (0, 1),
+                                                    ])
+                                                      if (_me.canGo(d.$1, d.$2))
+                                                        d,
+                                                  ]
+                                                : const [],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            _gateLabel(
+                              'CHIQISH',
+                              _maze.col(_maze.exit),
+                              cell,
+                              side,
+                              const Color(0xFFFFC233),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            if (_stage == _Stage.ready) _startOverlay(),
+            if (_stage == _Stage.countdown)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(
+                    child: TweenAnimationBuilder<double>(
+                      key: ValueKey(_count),
+                      tween: Tween(begin: 2, end: 1),
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeOutBack,
+                      builder: (_, s, child) =>
+                          Transform.scale(scale: s, child: child),
+                      child: GlowText('$_count', size: 96, color: _playerColor),
+                    ),
+                  ),
+                ),
+              ),
+            if (_stage == _Stage.won || _stage == _Stage.lost)
+              Positioned.fill(
+                child: WinOverlay(
+                  title: _stage == _Stage.won
+                      ? 'Siz yutdingiz!'
+                      : 'Kompyuter yutdi',
+                  subtitle: _stage == _Stage.won
+                      ? 'Vaqt: $_time'
+                      : 'U chiqishni birinchi topdi',
+                  confetti: _stage == _Stage.won,
+                  color: _stage == _Stage.won ? _playerColor : _aiColor,
+                  actions: [
+                    GameButton(
+                      label: 'Yangi labirint',
+                      icon: Icons.replay_rounded,
+                      colors: const [Color(0xFFFFC233), Color(0xFFB4532A)],
+                      onPressed: _restart,
+                    ),
+                    GameButton(
+                      label: 'Bosh menyu',
+                      outlined: true,
+                      colors: const [Colors.white70, Colors.white70],
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ),
-              SizedBox(
-                height: 24,
-                child: Text(
-                  _hint
-                      ? 'Chiziq uchidan davom eting'
-                      : _hits > 0
-                      ? 'Devorga tegdingiz: $_hits marta'
-                      : 'KIRISHdan CHIQISHgacha yo\'l chizing',
-                  style: TextStyle(
-                    color: _hint || _hits > 0
-                        ? const Color(0xFFFF8A80)
-                        : Colors.white60,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, box) {
-                    final side = min(box.maxWidth - 16, box.maxHeight - 40);
-                    final cell = side / size;
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _gateLabel(
-                            'KIRISH',
-                            _maze.col(_maze.start),
-                            cell,
-                            side,
-                            const Color(0xFF7CF5C4),
-                          ),
-                          SizedBox(
-                            width: side,
-                            height: side,
-                            child: GestureDetector(
-                              key: const ValueKey('maze'),
-                              behavior: HitTestBehavior.opaque,
-                              onPanStart: (d) => _down(d.localPosition, cell),
-                              onPanUpdate: (d) => _drag(d.localPosition, cell),
-                              onPanEnd: (_) => _up(),
-                              onPanCancel: _up,
-                              child: Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: RepaintBoundary(
-                                      child: CustomPaint(
-                                        painter: _MazePainter(_maze),
-                                      ),
-                                    ),
-                                  ),
-                                  Positioned.fill(
-                                    child: CustomPaint(
-                                      painter: _LinesPainter(
-                                        _maze,
-                                        _path.cells,
-                                        _ai.stack,
-                                        _ai.visited,
-                                        drawing: _path.drawing,
-                                      ),
-                                    ),
-                                  ),
-                                  Positioned.fill(
-                                    child: IgnorePointer(
-                                      child: AnimatedBuilder(
-                                        animation: _flash,
-                                        builder: (_, _) => ColoredBox(
-                                          color: const Color(0xFFFF1744)
-                                              .withValues(
-                                                alpha:
-                                                    0.45 *
-                                                    (1 - _flash.value) *
-                                                    (_flash.isAnimating
-                                                        ? 1
-                                                        : 0),
-                                              ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          _gateLabel(
-                            'CHIQISH',
-                            _maze.col(_maze.exit),
-                            cell,
-                            side,
-                            const Color(0xFFFFC233),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          if (_stage == _Stage.ready) _startOverlay(),
-          if (_stage == _Stage.countdown)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Center(
-                  child: TweenAnimationBuilder<double>(
-                    key: ValueKey(_count),
-                    tween: Tween(begin: 2, end: 1),
-                    duration: const Duration(milliseconds: 400),
-                    curve: Curves.easeOutBack,
-                    builder: (_, s, child) =>
-                        Transform.scale(scale: s, child: child),
-                    child: GlowText('$_count', size: 96, color: _playerColor),
-                  ),
-                ),
-              ),
-            ),
-          if (_stage == _Stage.won || _stage == _Stage.lost)
-            Positioned.fill(
-              child: WinOverlay(
-                title: _stage == _Stage.won
-                    ? 'Siz yutdingiz!'
-                    : 'Kompyuter yutdi',
-                subtitle: _stage == _Stage.won
-                    ? 'Vaqt: $_time  •  devorga tegish: $_hits'
-                    : 'U chiqishni birinchi topdi',
-                confetti: _stage == _Stage.won,
-                color: _stage == _Stage.won ? _playerColor : _aiColor,
-                actions: [
-                  GameButton(
-                    label: 'Yangi labirint',
-                    icon: Icons.replay_rounded,
-                    colors: const [Color(0xFFFFC233), Color(0xFFB4532A)],
-                    onPressed: _restart,
-                  ),
-                  GameButton(
-                    label: 'Bosh menyu',
-                    outlined: true,
-                    colors: const [Colors.white70, Colors.white70],
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -421,9 +479,9 @@ class _MazeScreenState extends State<MazeScreen> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  "Barmog'ingiz bilan KIRISHdan CHIQISHgacha yo'l chizing.\n"
-                  "Devorga tegsangiz chiziq uziladi — barmoqni ko'tarib, chiziq uchidan davom eting.\n"
-                  "Yashil chiziq — kompyuter. Undan oldin chiqing!",
+                  "Qaysi tomonga sursangiz, o'sha tomonga devorgacha yurasiz.\n"
+                  "Yo'lda burilish chiqsa — o'sha joyda to'xtaysiz, keyin yana surasiz.\n"
+                  "Yashil chiziq — kompyuter. Undan oldin CHIQISHga yeting!",
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white70, height: 1.4),
                 ),
@@ -536,14 +594,22 @@ class _LinesPainter extends CustomPainter {
   final List<int> player;
   final List<int> ai;
   final Set<int> visited;
-  final bool drawing;
+
+  /// O'yinchining aniq joyi (katak birligida) va devorga urilish silkinishi.
+  final Offset pawn;
+  final double shake;
+
+  /// To'xtab turganda ochiq tomonlar.
+  final List<(int, int)> exits;
 
   _LinesPainter(
     this.maze,
     this.player,
     this.ai,
     this.visited, {
-    required this.drawing,
+    required this.pawn,
+    this.shake = 0,
+    this.exits = const [],
   });
 
   @override
@@ -558,13 +624,14 @@ class _LinesPainter extends CustomPainter {
       canvas.drawCircle(center(i), s * 0.16, trace);
     }
 
-    void line(List<int> cells, Color color, double width) {
+    void line(List<int> cells, Color color, double width, {Offset? head}) {
       if (cells.isEmpty) return;
       final path = Path()
         ..moveTo(center(cells.first).dx, center(cells.first).dy);
       for (final i in cells.skip(1)) {
         path.lineTo(center(i).dx, center(i).dy);
       }
+      if (head != null) path.lineTo(head.dx, head.dy);
       canvas.drawPath(
         path,
         Paint()
@@ -584,21 +651,42 @@ class _LinesPainter extends CustomPainter {
           ..strokeJoin = StrokeJoin.round
           ..color = color,
       );
-      final head = center(cells.last);
-      canvas.drawCircle(head, s * width * 0.95, Paint()..color = Colors.white);
-      canvas.drawCircle(head, s * width * 0.6, Paint()..color = color);
+      final h = head ?? center(cells.last);
+      canvas.drawCircle(h, s * width * 0.95, Paint()..color = Colors.white);
+      canvas.drawCircle(h, s * width * 0.6, Paint()..color = color);
     }
 
     line(ai, _aiColor, 0.32);
-    line(player, _playerColor, 0.46);
-    if (drawing) {
-      canvas.drawCircle(
-        center(player.last),
-        s * 0.9,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = s * 0.12
-          ..color = _playerColor.withValues(alpha: 0.6),
+    final me = Offset(pawn.dx + shake * 0.15, pawn.dy) * s;
+    line(player, _playerColor, 0.4, head: me);
+
+    // O'yinchi: yorqin to'p
+    canvas.drawCircle(
+      me,
+      s * 0.9,
+      Paint()
+        ..color = _playerColor.withValues(alpha: 0.35)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, s * 0.5),
+    );
+    canvas.drawCircle(me, s * 0.42, Paint()..color = Colors.white);
+    canvas.drawCircle(me, s * 0.32, Paint()..color = _playerColor);
+
+    // Qayerga yurish mumkin — kichik strelkalar
+    final arrow = Paint()
+      ..color = Colors.white.withValues(alpha: 0.75)
+      ..style = PaintingStyle.fill;
+    for (final (dr, dc) in exits) {
+      final dir = Offset(dc.toDouble(), dr.toDouble());
+      final tip = me + dir * s * 1.05;
+      final base = me + dir * s * 0.7;
+      final side = Offset(-dir.dy, dir.dx) * s * 0.22;
+      canvas.drawPath(
+        Path()
+          ..moveTo(tip.dx, tip.dy)
+          ..lineTo((base + side).dx, (base + side).dy)
+          ..lineTo((base - side).dx, (base - side).dy)
+          ..close(),
+        arrow,
       );
     }
   }

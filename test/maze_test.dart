@@ -40,49 +40,66 @@ void main() {
     }
   });
 
-  test("yo'lak bo'ylab chizish chiqishga yetkazadi", () {
-    final p = PlayerPath(small);
-    expect(p.begin(1.5, 0.5), isTrue);
-    for (final (x, y) in [(1.5, 1.5), (5.5, 1.5), (5.5, 3.5), (1.5, 3.5), (1.5, 5.5), (5.5, 5.5), (5.5, 6.5)]) {
-      expect(p.move(x, y), isTrue);
+  int at(Maze m, int r, int c) => r * m.size + c;
+
+  test("surilgan tomonga devorgacha yuradi, yopiq tomonga yurmaydi", () {
+    final w = MazeWalker(small);
+    expect(w.slide(-1, 0), isEmpty); // tepada labirint tashqarisi
+    expect(w.slide(0, -1), isEmpty);
+    expect(w.go(1, 0), [at(small, 1, 1)]); // pastda burilish — to'xtadi
+    expect(w.go(0, 1), [for (var c = 2; c <= 5; c++) at(small, 1, c)]); // devorgacha
+    expect(w.canGo(0, 1), isFalse);
+  });
+
+  test("yo'l o'rtasida yon burilish chiqsa — o'sha joyda to'xtaydi", () {
+    final m = Maze.parse(const [
+      '#S###',
+      '#...#',
+      '#.#.#',
+      '#...#',
+      '###E#',
+    ]);
+    final w = MazeWalker(m);
+    expect(w.go(1, 0), [at(m, 1, 1)]); // o'ngga yo'l bor — pastga davom etmadi
+    expect(w.go(1, 0), [at(m, 2, 1), at(m, 3, 1)]);
+  });
+
+  test("sirpanib chiqishga yetadi; orqaga qaytsa iz o'chadi", () {
+    final w = MazeWalker(small);
+    for (final (dr, dc) in const [(1, 0), (0, 1), (1, 0), (0, -1), (1, 0), (0, 1), (1, 0)]) {
+      expect(w.go(dr, dc), isNotEmpty);
     }
-    expect(p.finished, isTrue);
-    expect(p.cells, small.shortestPath());
+    expect(w.finished, isTrue);
+    expect(w.cells, small.shortestPath());
+
+    final b = MazeWalker(small)..go(1, 0)..go(0, 1);
+    expect(b.cells.length, 6);
+    b.go(0, -1);
+    expect(b.at, at(small, 1, 1));
+    expect(b.cells.length, 2);
   });
 
-  test("devorga tegsa chizish uziladi, yo'l saqlanadi", () {
-    final p = PlayerPath(small)..begin(1.5, 0.5);
-    p.move(1.5, 1.5);
-    p.move(3.5, 1.5);
-    expect(p.move(3.5, 2.5), isFalse); // pastda devor
-    expect(p.drawing, isFalse);
-    final len = p.cells.length;
-    // Uzilgandan keyin barmoq siljisa ham hech narsa bo'lmaydi
-    p.move(4.5, 1.5);
-    expect(p.cells.length, len);
-    // Chiziq uchidan davom etish mumkin
-    expect(p.begin(3.5, 1.5), isTrue);
-    expect(p.move(5.5, 1.5), isTrue);
-    expect(p.end, 1 * 7 + 5);
-  });
-
-  test("tez surilganda ham devordan sakrab o'tib bo'lmaydi", () {
-    final p = PlayerPath(small)..begin(1.5, 0.5);
-    p.move(1.5, 1.5);
-    // 1-qatordan to'g'ri 3-qatorga (orada devor)
-    expect(p.move(1.5, 3.5), isFalse);
-    expect(p.cells.every((c) => !small.wall[c]), isTrue);
-  });
-
-  test("orqaga qaytsa chiziq o'chadi; chiziqdan uzoqda boshlab bo'lmaydi", () {
-    final p = PlayerPath(small)..begin(1.5, 0.5);
-    p.move(1.5, 1.5);
-    p.move(5.5, 1.5);
-    expect(p.cells.length, 6);
-    p.move(2.5, 1.5);
-    expect(p.cells.length, 3);
-    p.stop();
-    expect(p.begin(1.5, 5.5), isFalse);
+  test("katta labirintlarda ham surib chiqish mumkin", () {
+    for (var seed = 0; seed < 10; seed++) {
+      final m = Maze.generate(Maze.roomsFor(3), Random(seed));
+      final path = m.shortestPath();
+      final w = MazeWalker(m);
+      var guard = 0;
+      while (!w.finished && guard++ < 2000) {
+        // Eng qisqa yo'ldagi keyingi katak tomonga suramiz
+        final k = path.indexOf(w.at);
+        final next = path[k + 1];
+        final dr = m.row(next) - m.row(w.at), dc = m.col(next) - m.col(w.at);
+        final moved = w.slide(dr, dc);
+        expect(moved, isNotEmpty);
+        // Sirpanish eng qisqa yo'ldan chiqmaydi (burilishda to'xtaydi)
+        for (final c in moved) {
+          expect(path, contains(c));
+        }
+        moved.forEach(w.step);
+      }
+      expect(w.finished, isTrue);
+    }
   });
 
   test("kompyuter doim chiqishni topadi; qiyini tezroq", () {
@@ -116,16 +133,13 @@ void main() {
     for (var k = 0; k < 30; k++) {
       await t.pump(const Duration(milliseconds: 100));
     }
-    final rect = t.getRect(find.byKey(const ValueKey('maze')));
-    final cell = rect.width / small.size;
-    Offset at(int i) => rect.topLeft + Offset((small.col(i) + 0.5) * cell, (small.row(i) + 0.5) * cell);
-    final path = small.shortestPath();
-    final g = await t.startGesture(at(path.first));
-    for (final i in path.skip(1)) {
-      await g.moveTo(at(i));
-      await t.pump(const Duration(milliseconds: 16));
+    final center = t.getCenter(find.byKey(const ValueKey('maze')));
+    for (final (dr, dc) in const [(1, 0), (0, 1), (1, 0), (0, -1), (1, 0), (0, 1), (1, 0)]) {
+      await t.dragFrom(center, Offset(dc * 60.0, dr * 60.0));
+      for (var k = 0; k < 8; k++) {
+        await t.pump(const Duration(milliseconds: 60));
+      }
     }
-    await g.up();
     await t.pump(const Duration(milliseconds: 600));
     expect(find.text('Siz yutdingiz!'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
