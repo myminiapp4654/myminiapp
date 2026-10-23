@@ -1,19 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
 import '../net/server_client.dart';
 import '../services/checkers_service.dart';
-import '../services/audio_service.dart';
-import '../theme/pixel_ui.dart';
+import '../widgets/common.dart';
 
 class CheckersScreen extends StatefulWidget {
   final String roomCode;
   final bool isCreator;
 
-  const CheckersScreen({
-    super.key,
-    required this.roomCode,
-    required this.isCreator,
-  });
+  const CheckersScreen(
+      {super.key, required this.roomCode, required this.isCreator});
 
   @override
   State<CheckersScreen> createState() => _CheckersScreenState();
@@ -21,44 +17,36 @@ class CheckersScreen extends StatefulWidget {
 
 class _CheckersScreenState extends State<CheckersScreen> {
   final _service = CheckersService();
+  int? _selected;
 
-  int? _selectedCell;
-  List<Map<String, int>> _validMoves = [];
-  String _prevStatus = '';
+  Future<void> _leave(String status) async {
+    final nav = Navigator.of(context);
+    if (status != 'finished' && widget.isCreator) {
+      await _service.deleteRoom(widget.roomCode).catchError((_) {});
+    }
+    nav.pop();
+  }
 
-  void _onCellTap(int index, List<String> board, String myColor,
-      bool isMyTurn, int chainJump) {
-    if (!isMyTurn) return;
-
-    final move = _validMoves.firstWhere(
-      (m) => m['to'] == index,
-      orElse: () => {},
-    );
-    if (move.isNotEmpty && _selectedCell != null) {
-      _service.makeMove(widget.roomCode, _selectedCell!, move).catchError((_) {});
-      AudioService.instance.playSfx('move');
-      setState(() {
-        _selectedCell = null;
-        _validMoves = [];
-      });
+  void _onTap(int index, List<String> board, String myColor, int? selected,
+      List<Map<String, int>> moves) {
+    final move = moves.where((m) => m['to'] == index).firstOrNull;
+    if (move != null && selected != null) {
+      setState(() => _selected = null);
+      runAction(context,
+          () => _service.makeMove(widget.roomCode, selected, move));
       return;
     }
-
-    if (chainJump >= 0) return;
-
     final piece = board[index];
-    if (piece.isNotEmpty && piece.toLowerCase() == myColor) {
-      final moves = _service.validMoves(board, index, chainJump);
-      setState(() {
-        _selectedCell = index;
-        _validMoves = moves;
-      });
-    } else {
-      setState(() {
-        _selectedCell = null;
-        _validMoves = [];
-      });
-    }
+    setState(() {
+      _selected =
+          piece.isNotEmpty && piece.toLowerCase() == myColor ? index : null;
+    });
+  }
+
+  String _statusText(String status, String? winner, bool myTurn, String me) {
+    if (status == 'waiting') return 'Raqib kutilmoqda';
+    if (status == 'finished') return winner == me ? 'Siz yutdingiz' : 'Raqib yutdi';
+    return myTurn ? 'Sizning navbatingiz' : 'Raqib navbati';
   }
 
   @override
@@ -66,330 +54,107 @@ class _CheckersScreenState extends State<CheckersScreen> {
     return StreamBuilder<Doc>(
       stream: _service.gameStream(widget.roomCode),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return pixelLoading();
+        if (!snapshot.hasData) return const LoadingScreen();
+        if (!snapshot.data!.exists) return const ClosedScreen();
 
-        if (!snapshot.data!.exists) {
-          return Scaffold(
-            backgroundColor: kBg,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  pixelText("[ XONA O'CHIRILDI ]", kDanger, 18),
-                  const SizedBox(height: 20),
-                  pixelButton(
-                    label: '◄ ORQAGA',
-                    onTap: () => Navigator.pop(context),
-                    color: kBg,
-                    textColor: kAccent,
-                    borderColor: kAccent,
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        final data = snapshot.data!.data() as Map<String, dynamic>;
-        final board = List<String>.from(data['board']);
+        final data = snapshot.data!.data()!;
+        final board = List<String>.from(data['board'] as List);
         final status = data['status'] as String;
-        final currentTurn = data['currentTurn'] as String;
-        final player1 = data['player1'] as Map<String, dynamic>;
-        final player2 = data['player2'] as Map<String, dynamic>?;
-        final winner = data['winner'] as String?;
+        final turn = data['currentTurn'] as String;
+        final p1 = data['player1'] as Map;
+        final p2 = data['player2'] as Map?;
         final chainJump = (data['chainJump'] as int?) ?? -1;
-        final lastMoveRaw = data['lastMove'] as Map<String, dynamic>?;
-        final lastMoveFrom = lastMoveRaw?['from'] as int?;
-        final lastMoveTo = lastMoveRaw?['to'] as int?;
+        final lastMove = data['lastMove'] as Map?;
 
-        if (status == 'finished' && _prevStatus != 'finished') {
-          _prevStatus = status;
-          AudioService.instance.playSfx('win');
-        } else if (status != _prevStatus) {
-          _prevStatus = status;
-        }
+        final me = _service.myUid == p1['uid'] ? 'w' : 'b';
+        final myTurn = turn == me && status == 'playing';
 
-        final myColor = _service.myUid == player1['uid'] ? 'w' : 'b';
-        final isMyTurn = currentTurn == myColor && status == 'playing';
+        // Zanjirli urishda dona avtomatik tanlanadi
+        final selected = !myTurn
+            ? null
+            : (chainJump >= 0 ? chainJump : _selected);
+        final moves = selected == null
+            ? const <Map<String, int>>[]
+            : _service.validMoves(board, selected, chainJump);
+        final targets = moves.map((m) => m['to']).toSet();
 
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          if (chainJump >= 0 && isMyTurn) {
-            final moves = _service.validMoves(board, chainJump, chainJump);
-            final same = _selectedCell == chainJump &&
-                _validMoves.length == moves.length &&
-                List.generate(moves.length, (i) => i).every(
-                    (i) => _validMoves[i]['to'] == moves[i]['to']);
-            if (!same) {
-              setState(() {
-                _selectedCell = chainJump;
-                _validMoves = moves;
-              });
-            }
-          } else if (chainJump < 0 &&
-              (_selectedCell != null || _validMoves.isNotEmpty)) {
-            setState(() {
-              _selectedCell = null;
-              _validMoves = [];
-            });
-          }
-        });
-
-        final validMoveTos = _validMoves.map((m) => m['to']!).toList();
+        final scheme = Theme.of(context).colorScheme;
 
         return Scaffold(
-          backgroundColor: kBg,
           appBar: AppBar(
-            backgroundColor: kPanel,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: kAccent),
-              onPressed: () async {
-                final nav = Navigator.of(context);
-                if (status != 'finished' && widget.isCreator) {
-                  await _service.deleteRoom(widget.roomCode);
-                }
-                nav.pop();
-              },
-            ),
-            title: GestureDetector(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: widget.roomCode));
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Kod nusxalandi!')));
-              },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  pixelText('SHASHKA  ', kAccent, 13),
-                  pixelText(widget.roomCode, kWarn, 13),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.copy, color: kDim, size: 12),
-                ],
-              ),
-            ),
-            centerTitle: true,
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(2),
-              child: Container(height: 2, color: kAccent.withValues(alpha: 0.4)),
-            ),
+            leading: BackButton(onPressed: () => _leave(status)),
+            title: const Text('Shashka'),
           ),
-          body: SafeArea(
+          body: Padding(
+            padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-                  child: Row(
-                    children: [
-                      _playerCard(
-                        name: player1['name'] as String,
-                        color: 'w',
-                        isActive: currentTurn == 'w' && status == 'playing',
-                        isMe: myColor == 'w',
-                        board: board,
-                      ),
-                      Expanded(
-                        child: Center(
-                          child: pixelText(
-                            _statusText(status, winner, isMyTurn, myColor),
-                            _statusColor(status, winner, myColor),
-                            11,
-                          ),
-                        ),
-                      ),
-                      _playerCard(
-                        name: player2?['name'] as String? ?? '...',
-                        color: 'b',
-                        isActive: currentTurn == 'b' && status == 'playing',
-                        isMe: myColor == 'b',
-                        board: board,
-                      ),
-                    ],
-                  ),
-                ),
-
+                Text('${p1['name']} (oq)  —  ${p2?['name'] ?? '...'} (qora)'),
+                const SizedBox(height: 8),
+                Text(_statusText(status, data['winner'] as String?, myTurn, me)),
+                const SizedBox(height: 12),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Center(
                     child: AspectRatio(
                       aspectRatio: 1,
                       child: GridView.builder(
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 8,
-                          crossAxisSpacing: 1,
-                          mainAxisSpacing: 1,
-                        ),
+                                crossAxisCount: 8),
                         itemCount: 64,
-                        itemBuilder: (context, index) => _buildCell(
-                          index, board, myColor, isMyTurn, chainJump,
-                          validMoveTos, lastMoveFrom, lastMoveTo,
-                        ),
+                        itemBuilder: (context, i) {
+                          final dark = (i ~/ 8 + i % 8) % 2 == 1;
+                          final piece = board[i];
+                          Color bg = dark ? Colors.brown.shade700 : Colors.brown.shade200;
+                          if (i == selected) {
+                            bg = scheme.primary;
+                          } else if (targets.contains(i)) {
+                            bg = scheme.primaryContainer;
+                          } else if (lastMove != null &&
+                              (lastMove['from'] == i || lastMove['to'] == i)) {
+                            bg = Colors.brown.shade500;
+                          }
+                          return GestureDetector(
+                            onTap: dark && myTurn
+                                ? () => _onTap(i, board, me, selected, moves)
+                                : null,
+                            child: Container(
+                              color: bg,
+                              padding: const EdgeInsets.all(5),
+                              child: piece.isEmpty
+                                  ? null
+                                  : Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: piece.toLowerCase() == 'w'
+                                            ? Colors.white
+                                            : Colors.black,
+                                        border: Border.all(color: Colors.grey),
+                                      ),
+                                      child: piece == 'W' || piece == 'B'
+                                          ? const FittedBox(
+                                              child: Icon(Icons.star,
+                                                  color: Colors.amber))
+                                          : null,
+                                    ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
                 ),
-
                 if (status == 'finished')
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    child: pixelButton(
-                      label: '◄ XONAGA QAYTISH',
-                      onTap: () => Navigator.pop(context),
-                      color: kBg,
-                      textColor: kAccent,
-                      borderColor: kAccent,
-                    ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Xonaga qaytish'),
                   ),
-
               ],
             ),
           ),
         );
       },
     );
-  }
-
-  Widget _buildCell(int index, List<String> board, String myColor,
-      bool isMyTurn, int chainJump, List<int> validMoveTos,
-      int? lastMoveFrom, int? lastMoveTo) {
-    final row = index ~/ 8, col = index % 8;
-    final isDark = (row + col) % 2 == 1;
-    final piece = board[index];
-    final isSelected = _selectedCell == index;
-    final isValidTarget = validMoveTos.contains(index);
-    final isLastFrom = lastMoveFrom == index;
-    final isLastTo = lastMoveTo == index;
-
-    Color bg;
-    if (isSelected) {
-      bg = kAccent.withValues(alpha: 0.45);
-    } else if (isValidTarget) {
-      bg = kAccentDim.withValues(alpha: 0.6);
-    } else if (isLastTo) {
-      bg = kWarn.withValues(alpha: 0.35);
-    } else if (isLastFrom) {
-      bg = kWarn.withValues(alpha: 0.15);
-    } else if (isDark) {
-      bg = const Color(0xFF1E1E2E);
-    } else {
-      bg = const Color(0xFF2E2E3E);
-    }
-
-    return GestureDetector(
-      onTap: isDark
-          ? () => _onCellTap(index, board, myColor, isMyTurn, chainJump)
-          : null,
-      child: Container(
-        color: bg,
-        child: Stack(
-          children: [
-            if (isValidTarget && piece.isEmpty)
-              Center(
-                child: Container(width: 8, height: 8, color: kAccent),
-              ),
-            if (piece.isNotEmpty)
-              Center(child: _buildPiece(piece, isSelected)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPiece(String piece, bool isSelected) {
-    final isWhite = piece == 'w' || piece == 'W';
-    final isKing = piece == 'W' || piece == 'B';
-    final color = isWhite ? kWhite : kBg;
-    final borderColor = isSelected ? kAccent : isWhite ? kDim : kBorder;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
-      margin: EdgeInsets.all(isSelected ? 3 : 5),
-      decoration: BoxDecoration(
-        color: color,
-        border: Border.all(color: borderColor, width: isSelected ? 2 : 1.5),
-        borderRadius: BorderRadius.zero,
-        boxShadow: isSelected
-            ? [BoxShadow(
-                color: kAccent.withValues(alpha: 0.5),
-                blurRadius: 0,
-                offset: const Offset(2, 2))]
-            : null,
-      ),
-      child: isKing
-          ? Center(
-              child: pixelText('♛', kWarn, 14),
-            )
-          : null,
-    );
-  }
-
-  Widget _playerCard({
-    required String name,
-    required String color,
-    required bool isActive,
-    required bool isMe,
-    required List<String> board,
-  }) {
-    final count = board.where((p) => p.toLowerCase() == color).length;
-    final pieceColor = color == 'w' ? kWhite : kBg;
-    final borderColor = color == 'w' ? kWarn : kBlue;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? borderColor.withValues(alpha: 0.15) : kPanel,
-        border: Border.all(
-          color: isActive ? borderColor : kBorder,
-          width: 2,
-        ),
-        borderRadius: BorderRadius.zero,
-        boxShadow: isActive
-            ? [BoxShadow(
-                color: borderColor.withValues(alpha: 0.3),
-                blurRadius: 0,
-                offset: const Offset(2, 2))]
-            : null,
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 28, height: 28,
-            decoration: BoxDecoration(
-              color: pieceColor,
-              border: Border.all(color: borderColor, width: 2),
-            ),
-            child: Center(
-              child: pixelText('$count',
-                  color == 'w' ? kBg : kWhite, 12),
-            ),
-          ),
-          const SizedBox(height: 4),
-          pixelText(
-            isMe ? 'SEN' : name.split(' ').first.toUpperCase(),
-            kDim, 9,
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _statusText(
-      String status, String? winner, bool isMyTurn, String myColor) {
-    if (status == 'waiting') return 'KUTMOQDA...';
-    if (status == 'finished') {
-      final isWin = winner == myColor;
-      return isWin ? 'SIZ G\'ALDINGIZ!' : 'YUTQAZDINGIZ...';
-    }
-    return isMyTurn ? 'SIZNING NAVBAT' : 'RAQIB NAVBAT';
-  }
-
-  Color _statusColor(String status, String? winner, String myColor) {
-    if (status == 'finished') {
-      return winner == myColor ? kAccent : kDanger;
-    }
-    return kDim;
   }
 }

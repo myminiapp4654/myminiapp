@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../net/server_client.dart';
 import '../services/room_service.dart';
-import '../theme/pixel_ui.dart';
 import '../telegram/telegram.dart';
-import 'tictactoe_screen.dart';
+import '../widgets/common.dart';
 import 'checkers_screen.dart';
-import 'quiz_screen.dart';
 import 'ha_yoq_screen.dart';
-import 'word_puzzle_screen.dart';
+import 'quiz_screen.dart';
 import 'scrambled_word_screen.dart';
+import 'tictactoe_screen.dart';
+import 'word_puzzle_screen.dart';
+
+/// O'yin turlari: id -> nomi.
+const kGameNames = {
+  'tictactoe': 'X-O',
+  'checkers': 'Shashka',
+  'quiz': 'Viktorina',
+  'hayoq': "Ha / Yo'q",
+  'wordpuzzle': "So'z topish",
+  'scramble': 'Harflar',
+};
 
 class RoomScreen extends StatefulWidget {
   final String roomCode;
@@ -25,520 +36,77 @@ class _RoomScreenState extends State<RoomScreen> {
   final _roomService = RoomService();
 
   bool _navigating = false;
-  bool _creating = false;
+  bool _busy = false;
   final _visitedGameCodes = <String>{};
 
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<Doc>(
-      stream: _roomService.roomStream(widget.roomCode),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return pixelLoading();
-
-        if (!snapshot.data!.exists) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Xona yopildi')));
-              Navigator.pop(context);
-            }
-          });
-          return pixelLoading();
-        }
-
-        final data = snapshot.data!.data() as Map<String, dynamic>;
-        final players = data['players'] as Map<String, dynamic>;
-        final hostUid = data['host'] as String;
-        final amIHost = _roomService.myUid == hostUid;
-        final invite = data['gameInvite'] as Map<String, dynamic>?;
-
-        if (invite != null &&
-            invite['response'] == 'accepted' &&
-            !_navigating &&
-            !_visitedGameCodes.contains(invite['gameCode'] as String)) {
-          _navigating = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _navigateToGame(invite, amIHost);
-          });
-        }
-
-        return Scaffold(
-          backgroundColor: kBg,
-          appBar: AppBar(
-            backgroundColor: kPanel,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: kAccent),
-              onPressed: () async {
-                final nav = Navigator.of(context);
-                try {
-                  await _roomService.leaveRoom(widget.roomCode);
-                } catch (_) {}
-                nav.pop();
-              },
-            ),
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                pixelText('XONA: ', kDim, 11),
-                GestureDetector(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: widget.roomCode));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Kod nusxalandi!')));
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      pixelText(widget.roomCode, kWarn, 14),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.copy, size: 13, color: kDim),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            centerTitle: true,
-            actions: [
-              if (Telegram.isAvailable)
-                IconButton(
-                  tooltip: "Do'stni chaqirish",
-                  icon: const Icon(Icons.send, color: kAccent),
-                  onPressed: _inviteViaTelegram,
-                ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(2),
-              child: Container(height: 2, color: kAccent.withValues(alpha: 0.4)),
-            ),
-          ),
-          body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildPlayers(players, hostUid),
-                  const SizedBox(height: 20),
-                  Expanded(child: _buildContent(players, amIHost, invite)),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+  Future<void> _leave() async {
+    final nav = Navigator.of(context);
+    try {
+      await _roomService.leaveRoom(widget.roomCode);
+    } catch (_) {}
+    nav.pop();
   }
 
-  Widget _buildPlayers(Map<String, dynamic> players, String hostUid) {
-    final entries = players.entries.toList();
-    return pixelContainer(
-      borderColor: kWarn.withValues(alpha: 0.4),
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          ...entries.map((e) {
-            final p = e.value as Map;
-            final isHostPlayer = e.key == hostUid;
-            final isMe = e.key == _roomService.myUid;
-            final color = isHostPlayer ? kWarn : kAccent;
-            final name = p['name'] as String;
-            return Expanded(
-              child: Column(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.15),
-                      border: Border.all(color: color, width: 2),
-                    ),
-                    child: Center(
-                      child: pixelText(
-                        name.isEmpty ? '?' : name[0].toUpperCase(),
-                        color,
-                        18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  pixelText(
-                    isMe ? '${name.toUpperCase()} (SEN)' : name.toUpperCase(),
-                    kWhite,
-                    10,
-                  ),
-                  pixelText(
-                    isHostPlayer ? "XO'JAYIN" : 'MEHMON',
-                    color,
-                    9,
-                  ),
-                ],
-              ),
-            );
-          }),
-          if (players.length < 2)
-            Expanded(
-              child: Column(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: kPanel,
-                      border: Border.all(color: kBorder, width: 2),
-                    ),
-                    child:
-                        const Center(child: Icon(Icons.person_add, color: kDim, size: 18)),
-                  ),
-                  const SizedBox(height: 6),
-                  pixelText('KUTILMOQDA...', kDim, 9),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
+  void _copyCode() {
+    Clipboard.setData(ClipboardData(text: widget.roomCode));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Kod nusxalandi')));
   }
 
-  Widget _buildContent(
-      Map<String, dynamic> players, bool amIHost, Map<String, dynamic>? invite) {
-    if (players.length < 2) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            pixelText('[ KUTILMOQDA ]', kAccent, 20),
-            const SizedBox(height: 16),
-            pixelText("IKKINCHI O'YINCHI KUTILMOQDA...", kDim, 11),
-            const SizedBox(height: 8),
-            pixelText("KODINGIZNI DO'STINGIZGA YUBORING", kDim, 10),
-          ],
-        ),
-      );
-    }
-
-    if (invite != null && invite['response'] == null) {
-      return amIHost
-          ? _buildHostWaiting(invite)
-          : _buildGuestInvite(invite, players);
-    }
-
-    if (amIHost) return _buildGameSelection();
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          pixelText('[ O\'YIN ]', kAccent, 24),
-          const SizedBox(height: 16),
-          pixelText("XO'JAYIN O'YIN TANLAYAPTI...", kDim, 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGameSelection() {
-    final games = [
-      {'id': 'tictactoe', 'name': 'X-O', 'icon': '✖', 'color': kBlue},
-      {'id': 'checkers', 'name': 'SHASHKA', 'icon': '♟', 'color': kWarn},
-      {'id': 'quiz', 'name': 'QUIZ', 'icon': '?', 'color': kAccent},
-      {'id': 'hayoq', 'name': "HA/YO'Q", 'icon': '!', 'color': const Color(0xFF00CCFF)},
-      {'id': 'wordpuzzle', 'name': "SO'Z TOPISH", 'icon': 'A', 'color': kAccent},
-      {'id': 'scramble', 'name': 'HARFLAR', 'icon': '#', 'color': kDanger},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        pixelText("// O'YIN TANLANG:", kDim, 11, align: TextAlign.left),
-        const SizedBox(height: 12),
-        Expanded(
-          child: GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1.3,
-            physics: const NeverScrollableScrollPhysics(),
-            children: games.map((g) {
-              final color = g['color'] as Color;
-              return GestureDetector(
-                onTap: _creating ? null : () => _selectGame(g['id'] as String),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: _creating ? 0.03 : 0.08),
-                    border: Border.all(
-                        color: color.withValues(alpha: _creating ? 0.2 : 0.6),
-                        width: 2),
-                    borderRadius: BorderRadius.zero,
-                    boxShadow: _creating
-                        ? null
-                        : [
-                            BoxShadow(
-                                color: color.withValues(alpha: 0.3),
-                                blurRadius: 0,
-                                offset: const Offset(3, 3)),
-                          ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      pixelText(g['icon'] as String, color, 28),
-                      const SizedBox(height: 6),
-                      pixelText(g['name'] as String, color, 11),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-        if (_creating)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: pixelText('YARATILMOQDA...', kDim, 11),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildHostWaiting(Map invite) {
-    final names = {
-      'tictactoe': 'X-O',
-      'checkers': 'SHASHKA',
-      'quiz': 'QUIZ',
-      'hayoq': "HA / YO'Q",
-      'wordpuzzle': "SO'Z TOPISH",
-      'scramble': 'HARFLAR',
-    };
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          pixelText('[ TAKLIF YUBORILDI ]', kWarn, 18),
-          const SizedBox(height: 16),
-          pixelText(names[invite['game']] ?? '', kWhite, 22),
-          const SizedBox(height: 8),
-          pixelText('JAVOB KUTILMOQDA...', kDim, 11),
-          const SizedBox(height: 28),
-          pixelButton(
-            label: '✕ TAKLIFNI BEKOR QILISH',
-            onTap: () => _roomService.rejectInvite(widget.roomCode),
-            color: kBg,
-            textColor: kDanger,
-            borderColor: kDanger,
-            fontSize: 12,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGuestInvite(Map invite, Map<String, dynamic> players) {
-    final names = {
-      'tictactoe': "X-O O'YINI",
-      'checkers': 'SHASHKA',
-      'quiz': 'QUIZ',
-      'hayoq': "HA YOKI YO'Q",
-      'wordpuzzle': "SO'Z TOPISH",
-      'scramble': 'HARFLAR',
-    };
-    final icons = {
-      'tictactoe': '✖',
-      'checkers': '♟',
-      'quiz': '?',
-      'hayoq': '!',
-      'wordpuzzle': 'A',
-      'scramble': '#',
-    };
-    final hostName =
-        (players[invite['invitedBy']] as Map?)?['name']?.toString().toUpperCase() ??
-            "XO'JAYIN";
-    final gameName = names[invite['game']] ?? invite['game'];
-    final icon = icons[invite['game']] ?? '?';
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          pixelText(icon, kAccent, 56),
-          const SizedBox(height: 16),
-          pixelText(gameName, kWhite, 22),
-          const SizedBox(height: 8),
-          pixelText('$hostName TAKLIF QILDI', kDim, 11),
-          const SizedBox(height: 8),
-          pixelText('ROZIMISIZ?', kWarn, 14),
-          const SizedBox(height: 32),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _answerBtn('HA', kAccent, () => _acceptInvite(invite)),
-              const SizedBox(width: 20),
-              _answerBtn("YO'Q", kDanger,
-                  () => _roomService.rejectInvite(widget.roomCode)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _answerBtn(String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 100,
-        height: 80,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          border: Border.all(color: color, width: 2),
-          borderRadius: BorderRadius.zero,
-          boxShadow: [
-            BoxShadow(
-                color: color.withValues(alpha: 0.4),
-                blurRadius: 0,
-                offset: const Offset(3, 3)),
-          ],
-        ),
-        child: Center(child: pixelText(label, color, 18)),
-      ),
-    );
-  }
-
-  Future<int?> _showBoardSizeDialog() {
-    return showDialog<int>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: kPanel,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        child: Container(
-          decoration: BoxDecoration(border: Border.all(color: kBorder, width: 2)),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              pixelText("TAXTA O'LCHAMINI TANLANG", kAccent, 13),
-              const SizedBox(height: 16),
-              _sizeOption(ctx, 10, '10 × 10', '100 KATAK', kBlue),
-              const SizedBox(height: 10),
-              _sizeOption(ctx, 12, '12 × 12', '144 KATAK', kWarn),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _sizeOption(
-      BuildContext ctx, int size, String label, String desc, Color color) {
-    return GestureDetector(
-      onTap: () => Navigator.pop(ctx, size),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          border: Border.all(color: color.withValues(alpha: 0.5), width: 2),
-          borderRadius: BorderRadius.zero,
-          boxShadow: [
-            BoxShadow(
-                color: color.withValues(alpha: 0.3),
-                blurRadius: 0,
-                offset: const Offset(3, 3)),
-          ],
-        ),
-        child: Row(
-          children: [
-            pixelText(label, color, 18, align: TextAlign.left),
-            const Spacer(),
-            pixelText(desc, kDim, 11),
-            const SizedBox(width: 6),
-            Icon(Icons.arrow_forward_ios, color: color, size: 12),
-          ],
-        ),
-      ),
-    );
+  /// Telegram'da do'st tanlash oynasini ochadi.
+  void _invite() {
+    final link = ServerClient.instance.roomInviteLink(widget.roomCode);
+    Telegram.openLink('https://t.me/share/url'
+        '?url=${Uri.encodeComponent(link)}'
+        '&text=${Uri.encodeComponent("Keling, birga o'ynaymiz!")}');
   }
 
   Future<void> _selectGame(String game) async {
-    if (_creating) return;
-
-    int gridSize = 10;
+    Map<String, dynamic>? options;
     if (game == 'tictactoe') {
-      final size = await _showBoardSizeDialog();
-      if (size == null) return;
-      gridSize = size;
-    }
-
-    setState(() => _creating = true);
-    try {
-      await _roomService.proposeGame(
-        widget.roomCode,
-        game,
-        options: game == 'tictactoe' ? {'gridSize': gridSize} : null,
+      final size = await showDialog<int>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text("Taxta o'lchami"),
+          children: [
+            SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, 10),
+                child: const Text('10 × 10')),
+            SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, 12),
+                child: const Text('12 × 12')),
+          ],
+        ),
       );
-    } on ServerException catch (e) {
-      _showError(e.message);
-    } finally {
-      if (mounted) setState(() => _creating = false);
+      if (size == null) return;
+      options = {'gridSize': size};
     }
-  }
-
-  Future<void> _acceptInvite(Map invite) async {
-    try {
-      await _roomService.acceptInvite(widget.roomCode);
-    } on ServerException catch (e) {
-      _showError(e.message);
-    }
-  }
-
-  void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    setState(() => _busy = true);
+    await runAction(context,
+        () => _roomService.proposeGame(widget.roomCode, game, options: options));
+    if (mounted) setState(() => _busy = false);
   }
 
-  /// Telegram'da do'st tanlash oynasini ochadi; do'st havolani bossa
-  /// to'g'ridan-to'g'ri shu xonaga tushadi.
-  void _inviteViaTelegram() {
-    Telegram.haptic();
-    final link = ServerClient.instance.roomInviteLink(widget.roomCode);
-    const text = "Keling, Oyinim'da birga o'ynaymiz! 🎮";
-    Telegram.openLink('https://t.me/share/url'
-        '?url=${Uri.encodeComponent(link)}'
-        '&text=${Uri.encodeComponent(text)}');
-  }
-
-  Future<void> _navigateToGame(Map invite, bool amIHost) async {
+  Future<void> _openGame(Map invite, bool amIHost) async {
     final game = invite['game'] as String;
-    final gameCode = invite['gameCode'] as String;
+    final code = invite['gameCode'] as String;
+    _visitedGameCodes.add(code);
 
-    _visitedGameCodes.add(gameCode);
-
-    Widget screen;
-    switch (game) {
-      case 'tictactoe':
-        screen = TicTacToeScreen(roomCode: gameCode, isCreator: amIHost);
-        break;
-      case 'checkers':
-        screen = CheckersScreen(roomCode: gameCode, isCreator: amIHost);
-        break;
-      case 'quiz':
-        screen = QuizScreen(roomCode: gameCode, isHost: amIHost);
-        break;
-      case 'hayoq':
-        screen = HaYoqScreen(roomCode: gameCode, isHost: amIHost);
-        break;
-      case 'wordpuzzle':
-        screen = WordPuzzleScreen(roomCode: gameCode, isHost: amIHost);
-        break;
-      case 'scramble':
-        screen = ScrambledWordScreen(roomCode: gameCode, isHost: amIHost);
-        break;
-      default:
-        _navigating = false;
-        return;
+    final Widget screen = switch (game) {
+      'tictactoe' => TicTacToeScreen(roomCode: code, isCreator: amIHost),
+      'checkers' => CheckersScreen(roomCode: code, isCreator: amIHost),
+      'quiz' => QuizScreen(roomCode: code, isHost: amIHost),
+      'hayoq' => HaYoqScreen(roomCode: code, isHost: amIHost),
+      'wordpuzzle' => WordPuzzleScreen(roomCode: code, isHost: amIHost),
+      'scramble' => ScrambledWordScreen(roomCode: code, isHost: amIHost),
+      _ => const SizedBox(),
+    };
+    if (screen is SizedBox || !mounted) {
+      _navigating = false;
+      return;
     }
 
-    if (!mounted) return;
     await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
 
     if (mounted) {
@@ -547,5 +115,126 @@ class _RoomScreenState extends State<RoomScreen> {
         await _roomService.resetAfterGame(widget.roomCode).catchError((_) {});
       }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Doc>(
+      stream: _roomService.roomStream(widget.roomCode),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const LoadingScreen();
+        if (!snapshot.data!.exists) return const ClosedScreen();
+
+        final data = snapshot.data!.data()!;
+        final players = data['players'] as Map<String, dynamic>;
+        final hostUid = data['host'] as String;
+        final amIHost = _roomService.myUid == hostUid;
+        final invite = data['gameInvite'] as Map<String, dynamic>?;
+
+        // Taklif qabul qilinsa — ikkalasi ham o'yinga o'tadi
+        if (invite != null &&
+            invite['response'] == 'accepted' &&
+            !_navigating &&
+            !_visitedGameCodes.contains(invite['gameCode'])) {
+          _navigating = true;
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _openGame(invite, amIHost));
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            leading: BackButton(onPressed: _leave),
+            title: Text('Xona ${widget.roomCode}'),
+            actions: [
+              IconButton(icon: const Icon(Icons.copy), onPressed: _copyCode),
+            ],
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              for (final e in players.entries)
+                ListTile(
+                  leading: const Icon(Icons.person),
+                  title: Text((e.value as Map)['name'] as String),
+                  subtitle: Text(e.key == hostUid ? "Xo'jayin" : 'Mehmon'),
+                  trailing: e.key == _roomService.myUid ? const Text('Siz') : null,
+                ),
+              const Divider(),
+              ..._buildContent(players, amIHost, invite),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildContent(
+      Map<String, dynamic> players, bool amIHost, Map<String, dynamic>? invite) {
+    if (players.length < 2) {
+      return [
+        const Text("Ikkinchi o'yinchi kutilmoqda"),
+        const SizedBox(height: 12),
+        if (Telegram.isAvailable)
+          FilledButton.icon(
+            onPressed: _invite,
+            icon: const Icon(Icons.send),
+            label: const Text("Do'stni chaqirish"),
+          )
+        else
+          Text('Kodni yuboring: ${widget.roomCode}'),
+      ];
+    }
+
+    if (invite != null && invite['response'] == null) {
+      final gameName = kGameNames[invite['game']] ?? '';
+      if (amIHost) {
+        return [
+          Text('$gameName — javob kutilmoqda'),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () => runAction(
+                context, () => _roomService.rejectInvite(widget.roomCode)),
+            child: const Text('Bekor qilish'),
+          ),
+        ];
+      }
+      return [
+        Text("$gameName o'ynaysizmi?"),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton(
+                onPressed: () => runAction(
+                    context, () => _roomService.acceptInvite(widget.roomCode)),
+                child: const Text('Ha'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => runAction(
+                    context, () => _roomService.rejectInvite(widget.roomCode)),
+                child: const Text("Yo'q"),
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+
+    if (!amIHost) return [const Text("Xo'jayin o'yin tanlayapti...")];
+
+    return [
+      const Text("O'yin tanlang"),
+      const SizedBox(height: 8),
+      for (final g in kGameNames.entries)
+        ListTile(
+          title: Text(g.value),
+          trailing: const Icon(Icons.chevron_right),
+          enabled: !_busy,
+          onTap: () => _selectGame(g.key),
+        ),
+    ];
   }
 }

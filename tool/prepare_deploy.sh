@@ -6,6 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo ">> Ilova (web) build..."
+# Eski plagin keshi build'ni buzmasligi uchun
+rm -rf .dart_tool/flutter_build
 flutter pub get
 flutter build web --release --no-wasm-dry-run
 rm -rf deploy/web
