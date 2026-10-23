@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../games/battleship/battleship_screen.dart';
+import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
 import '../games/xo/xo_screen.dart';
 
@@ -70,6 +71,25 @@ class HomeScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const BattleshipScreen())),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.bubble_chart),
+              title: const Text('Chain Reaction'),
+              subtitle: const Text('2–4 kishi, bitta telefonda'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final s = await showChainSetup(context);
+                if (s == null || !context.mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChainScreen(
+                        players: s.players, rows: s.rows, cols: s.cols),
+                  ),
+                );
+              },
             ),
           ),
         ],
