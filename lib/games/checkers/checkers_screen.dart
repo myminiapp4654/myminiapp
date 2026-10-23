@@ -1,17 +1,27 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../telegram/telegram.dart';
 import '../../ui/crown.dart';
 import '../../ui/kit.dart';
+import 'checkers_ai.dart';
 import 'checkers_game.dart';
 
 const _ivory = Color(0xFFF3E9D2);
 const _ebony = Color(0xFF2B2B2B);
 
-/// Shashka: bitta telefonda ikki kishi. Oq pastda, birinchi yuradi.
+/// Shashka: siz (oq, pastda, birinchi yurasiz) kompyuterga qarshi.
 class CheckersScreen extends StatefulWidget {
-  const CheckersScreen({super.key});
+  /// Kompyuter darajasi: 1 — oson, 2 — o'rta, 3 — qiyin
+  final int level;
+
+  /// Testlar uchun
+  final int? seed;
+
+  const CheckersScreen({super.key, this.level = 2, this.seed});
 
   @override
   State<CheckersScreen> createState() => _CheckersScreenState();
@@ -20,22 +30,56 @@ class CheckersScreen extends StatefulWidget {
 class _CheckersScreenState extends State<CheckersScreen>
     with SingleTickerProviderStateMixin {
   final _game = CheckersGame();
+  late final Random _rnd = Random(widget.seed);
   int? _selected;
   int _moveCount = 0;
+  static const _me = 'w', _ai = 'b';
+
+  /// Kompyuter yurishi davom etyapti (qadamlar birin-ketin ko'rsatiladi).
+  Timer? _aiTimer;
+
+  bool get _myTurn => !_game.finished && _game.turn == _me && _aiTimer == null;
 
   late final AnimationController _pulse =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
         ..repeat(reverse: true);
 
-  static String _colorName(String c) => c == 'w' ? 'Oq' : 'Qora';
+  static String _who(String c) => c == _me ? 'Siz' : 'Kompyuter';
 
   @override
   void dispose() {
+    _aiTimer?.cancel();
     _pulse.dispose();
     super.dispose();
   }
 
+  /// Kompyuter navbati bo'lsa — o'ylab, qadamlarni birin-ketin yuradi.
+  void _maybeAi() {
+    if (_game.finished || _game.turn != _ai || _aiTimer != null) return;
+    _aiTimer = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      final steps = checkersAiTurn(_game, widget.level, _rnd);
+      _playSteps(steps, 0);
+    });
+  }
+
+  void _playSteps(List<CheckersMove> steps, int k) {
+    if (!mounted) return;
+    if (k >= steps.length) {
+      setState(() => _aiTimer = null);
+      return;
+    }
+    final m = steps[k];
+    setState(() {
+      _game.play(m.from, m.to);
+      _moveCount++;
+    });
+    m.isCapture ? HapticFeedback.mediumImpact() : HapticFeedback.selectionClick();
+    _aiTimer = Timer(const Duration(milliseconds: 380), () => _playSteps(steps, k + 1));
+  }
+
   void _tap(int i, List<CheckersMove> moves) {
+    if (!_myTurn) return;
     final from = _game.chain ?? _selected;
     if (from != null && moves.any((m) => m.from == from && m.to == i)) {
       final capture = moves.any((m) => m.from == from && m.to == i && m.isCapture);
@@ -46,6 +90,7 @@ class _CheckersScreenState extends State<CheckersScreen>
         _selected = null;
         _moveCount++;
       });
+      _maybeAi();
       return;
     }
     if (_game.chain != null) return; // zanjirli urishda boshqa dona tanlanmaydi
@@ -54,45 +99,31 @@ class _CheckersScreenState extends State<CheckersScreen>
     });
   }
 
-  void _newRound() => setState(() {
-        _game.newRound();
-        _selected = null;
-        _moveCount++;
-      });
-
-  Future<void> _offerDraw() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Durang?'),
-        content: const Text("Ikkalangiz rozi bo'lsangiz, raund durang bilan tugaydi."),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text("Yo'q")),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Ha, durang')),
-        ],
-      ),
-    );
-    if (ok == true) setState(_game.agreeDraw);
+  void _newRound() {
+    _aiTimer?.cancel();
+    _aiTimer = null;
+    setState(() {
+      _game.newRound();
+      _selected = null;
+      _moveCount++;
+    });
   }
 
   String _status() {
     final g = _game;
     if (g.winner == 'draw') return 'Durang';
-    if (g.finished) return '${_colorName(g.winner!)} yutdi!';
-    if (g.chain != null) return '${_colorName(g.turn)}: urishni davom ettiring';
-    if (g.mustCapture) return '${_colorName(g.turn)} navbati — urish majburiy';
-    return '${_colorName(g.turn)} navbati';
+    if (g.finished) return g.winner == _me ? 'Siz yutdingiz!' : 'Kompyuter yutdi';
+    if (g.turn == _ai) return "Kompyuter o'ylayapti…";
+    if (g.chain != null) return 'Urishni davom ettiring';
+    if (g.mustCapture) return 'Sizning navbatingiz — urish majburiy';
+    return 'Sizning navbatingiz';
   }
 
   Widget _badge(String color) {
     final g = _game;
     return PlayerBadge(
       color: color == 'w' ? _ivory : const Color(0xFF555555),
-      name: _colorName(color),
+      name: _who(color),
       value: '${g.count(color)}',
       active: !g.finished && g.turn == color,
       avatar: SizedBox(
@@ -107,7 +138,7 @@ class _CheckersScreenState extends State<CheckersScreen>
   Widget build(BuildContext context) {
     final g = _game;
     final status = _status();
-    final urgent = g.mustCapture && !g.finished;
+    final urgent = _myTurn && g.mustCapture;
 
     return GameScaffold(
       title: 'Shashka',
@@ -156,16 +187,6 @@ class _CheckersScreenState extends State<CheckersScreen>
                     children: [
                       Expanded(
                         child: GameButton(
-                          label: 'Durang',
-                          icon: Icons.handshake_rounded,
-                          outlined: true,
-                          colors: const [Color(0xFFFFB347), Color(0xFFFF6A3D)],
-                          onPressed: g.finished ? null : _offerDraw,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: GameButton(
                           label: 'Qaytadan',
                           icon: Icons.refresh_rounded,
                           outlined: true,
@@ -182,9 +203,13 @@ class _CheckersScreenState extends State<CheckersScreen>
           if (g.finished)
             Positioned.fill(
               child: WinOverlay(
-                title: g.winner == 'draw' ? 'Durang' : '${_colorName(g.winner!)} yutdi!',
-                subtitle: "Hisob: Oq ${g.score['w']} : ${g.score['b']} Qora",
-                confetti: g.winner != 'draw',
+                title: g.winner == 'draw'
+                    ? 'Durang'
+                    : g.winner == _me
+                        ? 'Siz yutdingiz!'
+                        : 'Kompyuter yutdi',
+                subtitle: "Hisob: Siz ${g.score['w']} : ${g.score['b']} Kompyuter",
+                confetti: g.winner == _me,
                 color: const Color(0xFFFFB347),
                 actions: [
                   GameButton(
@@ -205,7 +230,7 @@ class _CheckersScreenState extends State<CheckersScreen>
 
   Widget _buildBoard() {
     final g = _game;
-    final moves = g.legalMoves();
+    final moves = _myTurn ? g.legalMoves() : const <CheckersMove>[];
     final selected = g.chain ?? _selected;
     final targets = {
       for (final m in moves)

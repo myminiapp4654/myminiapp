@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oyinim/games/battleship/battleship_ai.dart';
 import 'package:oyinim/games/battleship/battleship_placement.dart';
 import 'package:oyinim/games/battleship/battleship_screen.dart';
 import 'package:oyinim/games/battleship/battleship_game.dart';
@@ -151,37 +152,85 @@ void main() {
     });
   });
 
-  testWidgets("ekran: joylashtirish -> uzatish -> jang", (t) async {
+  group('Kompyuter otishi', () {
+    /// Kompyuter (1) hamma kemani nechta o'qda cho'ktiradi.
+    int shotsToWin(int level, int seed) {
+      final r = Random(seed);
+      final g = BattleshipGame();
+      g.fleets[0].randomize(r);
+      g.fleets[1].randomize(r);
+      g.finishPlacing();
+      g.finishPlacing();
+      g.current = 1;
+      var n = 0;
+      while (g.phase == Phase.battle) {
+        g.current = 1; // faqat kompyuter otadi
+        final cell = battleshipAiShot(g, 1, level, r);
+        expect(g.fire(cell), isNot(ShotResult.repeat));
+        n++;
+      }
+      expect(g.winner, 1);
+      return n;
+    }
+
+    test("har darajada hamma kemani topadi, takror otmaydi", () {
+      for (final level in [1, 2, 3]) {
+        for (var s = 0; s < 5; s++) {
+          expect(shotsToWin(level, s), lessThanOrEqualTo(kCells));
+        }
+      }
+    });
+
+    test("qiyin kompyuter osonidan kamroq o'q sarflaydi", () {
+      double avg(int level) =>
+          [for (var s = 0; s < 20; s++) shotsToWin(level, s)].reduce((a, b) => a + b) / 20;
+      final easy = avg(1), mid = avg(2), hard = avg(3);
+      expect(hard, lessThan(easy - 4), reason: 'oson $easy, qiyin $hard');
+      expect(hard, lessThan(mid));
+      expect(mid, lessThan(easy));
+    });
+
+    test("tekkan kemani ta'qib qiladi", () {
+      final g = readyGame();
+      g.current = 1;
+      expect(g.fire(sq('b1')), ShotResult.hit); // 4 katakli kema a1-d1
+      g.current = 1;
+      final next = battleshipAiShot(g, 1, 2, Random(1));
+      expect([sq('a1'), sq('c1'), sq('b2')], contains(next));
+    });
+  });
+
+  testWidgets("ekran: joylashtirish -> jang -> kompyuter javob otadi", (t) async {
     t.view.physicalSize = const Size(1080, 2400);
     t.view.devicePixelRatio = 2.5;
     addTearDown(t.view.reset);
-    await t.pumpWidget(const MaterialApp(home: BattleshipScreen()));
+    await t.pumpWidget(const MaterialApp(home: BattleshipScreen(seed: 1)));
 
-    // 1-o'yinchi
-    expect(find.text("Telefonni 1-o'yinchiga bering"), findsOneWidget);
-    await t.tap(find.byKey(const ValueKey('open')));
-    await t.pump(const Duration(milliseconds: 400));
+    // Kemalar
     await t.tap(find.text('Tasodifiy'));
     await t.pump(const Duration(milliseconds: 400));
     await t.tap(find.byKey(const ValueKey('ready')));
     await t.pump(const Duration(milliseconds: 400));
+    expect(find.text('RAQIB DENGIZI'), findsOneWidget);
 
-    // 2-o'yinchi
-    expect(find.text("Telefonni 2-o'yinchiga bering"), findsOneWidget);
-    await t.tap(find.byKey(const ValueKey('open')));
-    await t.pump(const Duration(milliseconds: 400));
-    await t.tap(find.text('Tasodifiy'));
-    await t.pump(const Duration(milliseconds: 400));
-    await t.tap(find.byKey(const ValueKey('ready')));
-    await t.pump(const Duration(milliseconds: 400));
-
-    // Jang: 1-o'yinchi otadi
-    await t.tap(find.byKey(const ValueKey('open')));
-    await t.pump(const Duration(milliseconds: 400));
-    expect(find.text("1-o'yinchi otadi"), findsOneWidget);
-    await t.tap(find.byKey(const ValueKey('target-0')));
-    await t.pump(const Duration(milliseconds: 400));
-    expect(find.textContaining('a1 — '), findsOneWidget);
+    // Tegmaguncha otamiz
+    for (var k = 0; k < 81; k++) {
+      final cell = find.byKey(ValueKey('target-$k'));
+      await t.tap(cell, warnIfMissed: false);
+      await t.pump(const Duration(milliseconds: 50));
+      if (find.textContaining('Tegmadi').evaluate().isNotEmpty) break;
+    }
+    // Kompyuter navbati: katta taxtada sizning dengizingiz
+    await t.pump(const Duration(milliseconds: 1100));
+    expect(find.text('SIZNING DENGIZINGIZ'), findsOneWidget);
+    await t.pump(const Duration(milliseconds: 1000));
+    expect(find.textContaining('Kompyuter: '), findsOneWidget);
+    // ...va oxiri navbat qaytadi
+    for (var k = 0; k < 60 && find.text('RAQIB DENGIZI').evaluate().isEmpty; k++) {
+      await t.pump(const Duration(milliseconds: 500));
+    }
+    expect(find.text('RAQIB DENGIZI'), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
   });
 
   group('Sudrab joylashtirish', () {

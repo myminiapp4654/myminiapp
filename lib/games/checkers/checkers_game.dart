@@ -1,4 +1,4 @@
-/// Rus shashkasi (bitta telefonda ikki kishi).
+/// Rus shashkasi.
 ///
 /// Taxta: 64 katak, faqat qora kataklar ((qator+ustun) toq) ishlatiladi.
 ///   ''  bo'sh, 'w' oq dona, 'b' qora dona, 'W' oq damka, 'B' qora damka
@@ -12,6 +12,7 @@
 ///  - dona oxirgi qatorga yetsa damka bo'ladi (urish paytida ham — urishni damka bo'lib davom ettiradi)
 ///  - damka urgandan keyin urishni davom ettira oladigan katakka tushishi shart
 ///  - raqibda dona yoki yurish qolmasa — yutqazadi
+///  - faqat damkalar urishsiz 15 tadan yurish qilsa — durang
 class CheckersMove {
   final int from;
   final int to;
@@ -39,6 +40,10 @@ class CheckersGame {
   int? lastFrom;
   int? lastTo;
 
+  /// Faqat damkalar urishsiz yurgan yarim yurishlar soni.
+  int kingQuiet = 0;
+  static const kingQuietLimit = 30;
+
   final score = {'w': 0, 'b': 0};
   int draws = 0;
   int round = 0;
@@ -48,6 +53,17 @@ class CheckersGame {
   CheckersGame() {
     newRound();
   }
+
+  CheckersGame._empty();
+
+  /// Hisoblash uchun nusxa (hisob va raundlarsiz).
+  CheckersGame copy() => CheckersGame._empty()
+    ..board = [...board]
+    ..turn = turn
+    ..winner = winner
+    ..chain = chain
+    ..captured.addAll(captured)
+    ..kingQuiet = kingQuiet;
 
   bool get finished => winner != null;
 
@@ -62,6 +78,7 @@ class CheckersGame {
     }
     turn = 'w';
     winner = null;
+    kingQuiet = 0;
     chain = null;
     captured.clear();
     lastFrom = lastTo = null;
@@ -220,6 +237,7 @@ class CheckersGame {
     }
 
     // Yurish tugadi: urilganlarni olib tashlaymiz, navbat almashadi
+    kingQuiet = captured.isEmpty && isKing(piece) ? kingQuiet + 1 : 0;
     for (final i in captured) {
       board[i] = '';
     }
@@ -231,6 +249,9 @@ class CheckersGame {
     if (count(turn) == 0 || legalMoves().isEmpty) {
       winner = mover;
       score[mover] = score[mover]! + 1;
+    } else if (kingQuiet >= kingQuietLimit) {
+      winner = 'draw';
+      draws++;
     }
     return true;
   }

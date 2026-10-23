@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../telegram/telegram.dart';
 import '../../ui/kit.dart';
+import 'xo_ai.dart';
 import 'xo_game.dart';
 
 const _xColor = Color(0xFF4DE8FF);
@@ -12,11 +14,17 @@ const _oColor = Color(0xFFFF5FA2);
 
 Color _markColor(String m) => m == 'X' ? _xColor : _oColor;
 
-/// X-O: bitta telefonda ikki kishi navbatma-navbat o'ynaydi.
+/// X-O: siz (X) kompyuterga (O) qarshi o'ynaysiz.
 class XoScreen extends StatefulWidget {
   final int size;
 
-  const XoScreen({super.key, required this.size});
+  /// Kompyuter darajasi: 1 — oson, 2 — o'rta, 3 — qiyin
+  final int level;
+
+  /// Testlar uchun
+  final int? seed;
+
+  const XoScreen({super.key, required this.size, this.level = 2, this.seed});
 
   @override
   State<XoScreen> createState() => _XoScreenState();
@@ -24,21 +32,68 @@ class XoScreen extends StatefulWidget {
 
 class _XoScreenState extends State<XoScreen> {
   late final XoGame _game = XoGame(widget.size);
+  late final Random _rnd = Random(widget.seed);
+  static const _me = 'X', _ai = 'O';
+  Timer? _aiTimer;
+
+  bool get _myTurn => !_game.finished && _game.turn == _me && _aiTimer == null;
+
+  @override
+  void dispose() {
+    _aiTimer?.cancel();
+    super.dispose();
+  }
 
   void _tap(int i) {
-    if (!_game.play(i)) return;
+    if (!_myTurn || !_game.play(i)) return;
     Telegram.haptic();
     _game.finished
         ? HapticFeedback.heavyImpact()
         : HapticFeedback.selectionClick();
     setState(() {});
+    _maybeAi();
   }
 
-  void _again() => setState(_game.newRound);
+  /// Kompyuter navbati bo'lsa, biroz "o'ylab" yuradi.
+  void _maybeAi() {
+    if (_game.finished || _game.turn != _ai || _aiTimer != null) return;
+    _aiTimer = Timer(Duration(milliseconds: 380 + _rnd.nextInt(300)), () {
+      if (!mounted) return;
+      _aiTimer = null;
+      _game.play(xoAiMove(_game, _ai, widget.level, _rnd));
+      if (_game.finished) HapticFeedback.heavyImpact();
+      setState(() {});
+    });
+  }
+
+  void _again() {
+    _aiTimer?.cancel();
+    _aiTimer = null;
+    setState(_game.newRound);
+    _maybeAi();
+  }
 
   Widget _side(String mark) {
     final g = _game;
     final active = !g.finished && g.turn == mark;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _sideBox(mark, active),
+        const SizedBox(height: 6),
+        Text(
+          mark == _me ? 'Siz' : 'Kompyuter',
+          style: TextStyle(
+            color: active ? _markColor(mark) : Colors.white54,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sideBox(String mark, bool active) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       width: 64,
@@ -67,7 +122,11 @@ class _XoScreenState extends State<XoScreen> {
   @override
   Widget build(BuildContext context) {
     final g = _game;
-    final status = !g.finished ? '${g.turn} navbati' : '';
+    final status = g.finished
+        ? ''
+        : g.turn == _me
+            ? 'Sizning navbatingiz'
+            : "Kompyuter o'ylayapti…";
 
     return GameScaffold(
       title: 'X-O ${g.size}×${g.size}',
@@ -141,9 +200,13 @@ class _XoScreenState extends State<XoScreen> {
             Positioned.fill(
               child: WinOverlay(
                 key: ValueKey('win-${g.round}'),
-                title: g.winner == 'draw' ? 'Durang' : '${g.winner} yutdi!',
+                title: g.winner == 'draw'
+                    ? 'Durang'
+                    : g.winner == _me
+                        ? 'Siz yutdingiz!'
+                        : 'Kompyuter yutdi',
                 subtitle: 'Hisob ${g.score['X']} : ${g.score['O']}',
-                confetti: g.winner != 'draw',
+                confetti: g.winner == _me,
                 color: g.winner == 'draw'
                     ? Colors.white
                     : _markColor(g.winner!),
@@ -193,7 +256,7 @@ class _XoScreenState extends State<XoScreen> {
                   height: s,
                   child: GestureDetector(
                     key: ValueKey('cell-$i'),
-                    onTap: !g.finished && g.board[i].isEmpty
+                    onTap: _myTurn && g.board[i].isEmpty
                         ? () => _tap(i)
                         : null,
                     child: AnimatedContainer(

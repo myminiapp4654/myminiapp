@@ -507,3 +507,26 @@ class _MiniGridPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MiniGridPainter old) => false;
 }
+
+/// Faqat kompyuter darajasini tanlash oynasi (Shashka, Dengiz jangi...).
+Future<int?> showLevelSetup(
+  BuildContext context, {
+  required String title,
+  required List<Color> colors,
+  int initial = 2,
+}) {
+  var level = initial;
+  return showGameSetup<int>(
+    context,
+    title: title,
+    colors: colors,
+    onStart: () => level,
+    builder: (ctx, setState) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SetupLabel('Kompyuter — smaylikni suring'),
+        DifficultyRope(value: level, onChanged: (v) => setState(() => level = v)),
+      ],
+    ),
+  );
+}

@@ -1,4 +1,4 @@
-/// Chain Burst (Chain Reaction): 2–8 o'yinchi, bitta telefonda.
+/// Chain Reaction: 2–8 o'yinchi (siz va kompyuterlar).
 ///
 /// - Navbat bilan bo'sh yoki o'z rangingizdagi katakka shar qo'yasiz
 /// - Katakdagi sharlar soni uning qo'shnilari soniga yetsa (burchak 2, chet 3,
@@ -37,6 +37,23 @@ class ChainGame {
       : score = List.filled(players, 0) {
     newRound();
   }
+
+  ChainGame._copy(ChainGame g)
+      : rows = g.rows,
+        cols = g.cols,
+        players = g.players,
+        score = List.of(g.score) {
+    owner = List.of(g.owner);
+    count = List.of(g.count);
+    hasMoved = List.of(g.hasMoved);
+    current = g.current;
+    winner = g.winner;
+    exploding = g.exploding;
+    round = g.round;
+  }
+
+  /// Hisoblash uchun nusxa.
+  ChainGame copy() => ChainGame._copy(this);
 
   int get cells => rows * cols;
   bool get finished => winner != null;

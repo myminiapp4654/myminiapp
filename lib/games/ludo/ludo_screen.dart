@@ -17,46 +17,44 @@ const kLudoColors = [
 ];
 const kLudoNames = ['Qizil', 'Yashil', 'Sariq', "Ko'k"];
 
-/// Sozlamalar: nechta o'yinchi va kim kompyuter.
+/// Sozlamalar: nechta kompyuter. Siz doim qizilsiz.
 Future<({int players, Set<int> ai})?> showLudoSetup(BuildContext context) {
-  var players = 2;
-  final ai = <int>{2}; // 2 kishida sariq — kompyuter
+  var bots = 1;
   return showGameSetup(
     context,
     title: 'Ludo',
     colors: const [Color(0xFFFFC233), Color(0xFFF107A3)],
     onStart: () {
-      final colors = LudoGame.colorsFor(players);
-      return (players: players, ai: ai.where(colors.contains).toSet());
+      final colors = LudoGame.colorsFor(bots + 1);
+      return (players: bots + 1, ai: colors.where((c) => c != 0).toSet());
     },
     builder: (ctx, setState) {
-      final colors = LudoGame.colorsFor(players);
+      final colors = LudoGame.colorsFor(bots + 1);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SetupLabel("O'yinchilar soni"),
+          const SetupLabel('Nechta kompyuter'),
           PlayerCountPicker(
-            min: 2,
-            max: 4,
-            value: players,
-            colors: [for (final c in colors) kLudoColors[c]],
-            onChanged: (n) => setState(() => players = n),
+            min: 1,
+            max: 3,
+            value: bots,
+            colors: [for (final c in colors.skip(1)) kLudoColors[c]],
+            onChanged: (n) => setState(() => bots = n),
           ),
-          const SetupLabel("Kim o'ynaydi — bosib almashtiring"),
+          const SetupLabel("Kim o'ynaydi"),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             alignment: WrapAlignment.center,
             children: [
               for (final c in colors)
-                GestureDetector(
+                TweenAnimationBuilder<double>(
                   key: ValueKey('seat-$c'),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    setState(() => ai.contains(c) ? ai.remove(c) : ai.add(c));
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 380),
+                  curve: Curves.easeOutBack,
+                  builder: (_, v, child) => Transform.scale(scale: v, child: child),
+                  child: Container(
                     width: 82,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
@@ -69,23 +67,15 @@ Future<({int players, Set<int> ai})?> showLudoSetup(BuildContext context) {
                     ),
                     child: Column(
                       children: [
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          transitionBuilder: (child, a) => RotationTransition(
-                            turns: Tween(begin: 0.5, end: 1.0).animate(a),
-                            child: ScaleTransition(scale: a, child: child),
-                          ),
-                          child: Icon(
-                            ai.contains(c) ? Icons.smart_toy_rounded : Icons.person_rounded,
-                            key: ValueKey(ai.contains(c)),
-                            color: Colors.white,
-                            size: 34,
-                          ),
+                        Icon(
+                          c == 0 ? Icons.person_rounded : Icons.smart_toy_rounded,
+                          color: Colors.white,
+                          size: 34,
                         ),
                         const SizedBox(height: 4),
                         Text(kLudoNames[c],
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                        Text(ai.contains(c) ? 'Kompyuter' : 'Odam',
+                        Text(c == 0 ? 'Siz' : 'Kompyuter',
                             style: const TextStyle(color: Colors.white70, fontSize: 11)),
                       ],
                     ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../telegram/telegram.dart';
+import 'chain_ai.dart';
 import 'chain_game.dart';
 import '../../ui/kit.dart';
 import '../../ui/setup.dart';
@@ -22,25 +23,26 @@ const kChainNames = [
   'Qizil', "Ko'k", 'Sariq', 'Yashil', 'Binafsha', "To'q sariq", 'Pushti', 'Oq',
 ];
 
-/// O'yin sozlamalari: o'yinchilar soni va taxta o'lchami.
-Future<({int players, int rows, int cols})?> showChainSetup(BuildContext context) {
-  var players = 2;
+/// O'yin sozlamalari: kompyuterlar soni, taxta o'lchami va daraja.
+Future<({int players, int rows, int cols, int level})?> showChainSetup(BuildContext context) {
+  var bots = 1;
   var big = false;
+  var level = 2;
   return showGameSetup(
     context,
     title: 'Chain Reaction',
     colors: const [Color(0xFFFF4D8D), Color(0xFF7B2FF7)],
-    onStart: () => (players: players, rows: big ? 12 : 9, cols: big ? 8 : 6),
+    onStart: () => (players: bots + 1, rows: big ? 12 : 9, cols: big ? 8 : 6, level: level),
     builder: (ctx, setState) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SetupLabel("O'yinchilar soni"),
+        const SetupLabel('Nechta kompyuter'),
         PlayerCountPicker(
-          min: 2,
-          max: 8,
-          value: players,
-          colors: kChainColors,
-          onChanged: (n) => setState(() => players = n),
+          min: 1,
+          max: 7,
+          value: bots,
+          colors: kChainColors.sublist(1),
+          onChanged: (n) => setState(() => bots = n),
         ),
         const SizedBox(height: 6),
         const SetupLabel('Taxta'),
@@ -62,18 +64,35 @@ Future<({int players, int rows, int cols})?> showChainSetup(BuildContext context
             onTap: () => setState(() => big = true),
           ),
         ]),
+        const SizedBox(height: 10),
+        const SetupLabel('Kompyuter — smaylikni suring'),
+        DifficultyRope(value: level, onChanged: (v) => setState(() => level = v)),
       ],
     ),
   );
 }
 
+/// Chain Reaction: siz (qizil) kompyuterlarga qarshi.
 class ChainScreen extends StatefulWidget {
+  /// Jami o'yinchilar: siz + kompyuterlar
   final int players;
   final int rows;
   final int cols;
 
-  const ChainScreen(
-      {super.key, this.players = 2, this.rows = 9, this.cols = 6});
+  /// Kompyuter darajasi: 1 — oson, 2 — o'rta, 3 — qiyin
+  final int level;
+
+  /// Testlar uchun
+  final int? seed;
+
+  const ChainScreen({
+    super.key,
+    this.players = 2,
+    this.rows = 9,
+    this.cols = 6,
+    this.level = 2,
+    this.seed,
+  });
 
   @override
   State<ChainScreen> createState() => _ChainScreenState();
@@ -94,6 +113,21 @@ class _ChainScreenState extends State<ChainScreen>
     ..repeat();
 
   static const _waveDelay = Duration(milliseconds: 170);
+  static const _me = 0;
+  late final Random _rnd = Random(widget.seed);
+
+  /// Yurish (portlashlar bilan) davom etyapti.
+  bool _busy = false;
+
+  /// Raund raqami — eski raunddagi kompyuter yurishini to'xtatish uchun.
+  int _epoch = 0;
+
+  static String _name(int p) => p == _me ? 'Siz' : kChainNames[p];
+
+  bool get _myTurn => !_game.finished && !_busy && _game.current == _me && !_out;
+
+  /// Siz hamma sharlaringizdan ayrildingiz.
+  bool get _out => !_game.finished && !_game.isAlive(_me);
 
   @override
   void initState() {
@@ -107,13 +141,19 @@ class _ChainScreenState extends State<ChainScreen>
     super.dispose();
   }
 
-  Future<void> _tap(int i) async {
+  void _tap(int i) {
+    if (!_myTurn) return;
+    _run(i);
+  }
+
+  /// Shar qo'yib, portlashlarni to'lqin-to'lqin ko'rsatadi, keyin navbat o'tadi.
+  Future<void> _run(int i) async {
+    final epoch = _epoch;
     if (!_game.place(i)) return;
-    setState(() {});
-    // Portlashlar to'lqin-to'lqin
-    while (mounted) {
+    setState(() => _busy = true);
+    while (mounted && epoch == _epoch) {
       await Future.delayed(_waveDelay);
-      if (!mounted) return;
+      if (!mounted || epoch != _epoch) return;
       final burst = _game.step();
       if (burst.isEmpty) break;
       HapticFeedback.lightImpact();
@@ -123,19 +163,48 @@ class _ChainScreenState extends State<ChainScreen>
         _wave++;
       });
     }
-    if (!mounted) return;
+    if (!mounted || epoch != _epoch) return;
     setState(() {
       _game.endTurn();
       _flash = {};
+      _busy = false;
     });
+    _maybeAi();
   }
 
+  /// Kompyuterlar navbati: har biri biroz o'ylab yuradi.
+  Future<void> _maybeAi() async {
+    final g = _game;
+    if (g.finished || g.current == _me || _out || _busy) return;
+    final epoch = _epoch;
+    setState(() => _busy = true);
+    await Future.delayed(const Duration(milliseconds: 450));
+    if (!mounted || epoch != _epoch) return;
+    _busy = false;
+    final move = chainAiMove(g, widget.level, _rnd);
+    if (move >= 0) await _run(move);
+  }
 
-  void _restart() => setState(() {
-        _game.newRound();
-        _game.round--; // qayta boshlash raund hisoblanmaydi
-        _flash = {};
-      });
+  void _restart() {
+    _epoch++;
+    setState(() {
+      _game.newRound();
+      _game.round--; // qayta boshlash raund hisoblanmaydi
+      _flash = {};
+      _busy = false;
+    });
+    _maybeAi();
+  }
+
+  void _nextRound() {
+    _epoch++;
+    setState(() {
+      _game.newRound();
+      _flash = {};
+      _busy = false;
+    });
+    _maybeAi();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,13 +214,6 @@ class _ChainScreenState extends State<ChainScreen>
     return GameScaffold(
       title: 'Chain Reaction',
       palette: GamePalette.chain,
-      actions: [
-        IconButton(
-          tooltip: 'Yurishni qaytarish',
-          icon: const Icon(Icons.undo_rounded),
-          onPressed: g.canUndo ? () => setState(g.undo) : null,
-        ),
-      ],
       body: Stack(
         children: [
           Column(
@@ -166,10 +228,15 @@ class _ChainScreenState extends State<ChainScreen>
                     for (var p = 0; p < g.players; p++)
                       PlayerBadge(
                         color: kChainColors[p],
-                        name: '${kChainNames[p]}${g.score[p] > 0 ? ' ★${g.score[p]}' : ''}',
+                        name: '${_name(p)}${g.score[p] > 0 ? ' ★${g.score[p]}' : ''}',
                         value: '${g.orbsOf(p)}',
                         active: p == g.current && !g.finished,
                         dimmed: !g.isAlive(p),
+                        avatar: Icon(
+                          p == _me ? Icons.person_rounded : Icons.smart_toy_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                       ),
                   ],
                 ),
@@ -178,7 +245,11 @@ class _ChainScreenState extends State<ChainScreen>
                 height: 34,
                 child: g.finished
                     ? null
-                    : GlowText('${kChainNames[g.current]} navbati', size: 20, color: turnColor),
+                    : GlowText(
+                        g.current == _me ? 'Sizning navbatingiz' : "${kChainNames[g.current]} o'ylayapti…",
+                        size: 20,
+                        color: turnColor,
+                      ),
               ),
               Expanded(
                 child: Center(
@@ -219,7 +290,7 @@ class _ChainScreenState extends State<ChainScreen>
                   icon: Icons.refresh_rounded,
                   outlined: true,
                   colors: [turnColor, turnColor],
-                  onPressed: g.exploding || g.finished ? null : _restart,
+                  onPressed: g.finished || !_myTurn ? null : _restart,
                 ),
               ),
               Padding(
@@ -229,19 +300,24 @@ class _ChainScreenState extends State<ChainScreen>
               ),
             ],
           ),
-          if (g.finished)
+          if (g.finished || _out)
             Positioned.fill(
               child: WinOverlay(
-                key: ValueKey('win-${g.round}'),
-                title: '${kChainNames[g.winner!]} yutdi!',
-                subtitle: 'Butun taxtani egalladi',
-                color: kChainColors[g.winner!],
+                key: ValueKey('win-${g.round}-${g.finished}'),
+                title: g.finished
+                    ? (g.winner == _me ? 'Siz yutdingiz!' : '${kChainNames[g.winner!]} yutdi')
+                    : 'Sharlaringiz tugadi',
+                subtitle: g.winner == _me
+                    ? 'Butun taxtani egalladingiz'
+                    : "Yana bir urinib ko'ring",
+                confetti: g.winner == _me,
+                color: kChainColors[g.winner ?? 1],
                 actions: [
                   GameButton(
                     label: "Yana o'ynash",
                     icon: Icons.replay_rounded,
-                    colors: [kChainColors[g.winner!], const Color(0xFF7B2FF7)],
-                    onPressed: () => setState(g.newRound),
+                    colors: [kChainColors[g.winner ?? 1], const Color(0xFF7B2FF7)],
+                    onPressed: _nextRound,
                   ),
                   GameButton(
                     label: 'Bosh menyu',
@@ -266,7 +342,7 @@ class _ChainScreenState extends State<ChainScreen>
 
     return GestureDetector(
       key: ValueKey('cell-$i'),
-      onTap: g.canPlace(i) ? () => _tap(i) : null,
+      onTap: _myTurn && g.canPlace(i) ? () => _tap(i) : null,
       child: Container(
         decoration: BoxDecoration(
           border: Border.all(color: gridColor.withValues(alpha: 0.28), width: 0.6),

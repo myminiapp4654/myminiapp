@@ -9,10 +9,8 @@ import '../../ui/setup.dart';
 import 'chess_game.dart';
 import 'chess_pieces.dart';
 
-/// Sozlamalar: 2 kishi yoki kompyuterga qarshi.
-Future<({bool vsAi, String humanColor, int level})?> showChessSetup(
-    BuildContext context) {
-  var vsAi = true;
+/// Sozlamalar: rangingiz va kompyuter darajasi.
+Future<({String humanColor, int level})?> showChessSetup(BuildContext context) {
   var color = 'w';
   var level = 2;
   const gold = Color(0xFFE8C07A);
@@ -20,61 +18,31 @@ Future<({bool vsAi, String humanColor, int level})?> showChessSetup(
     context,
     title: 'Shaxmat',
     colors: const [Color(0xFFE8C07A), Color(0xFF8E5A2B)],
-    onStart: () => (vsAi: vsAi, humanColor: color, level: level),
+    onStart: () => (humanColor: color, level: level),
     builder: (ctx, setState) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SetupLabel('Kim bilan'),
+        const SetupLabel('Siz qaysi rangda'),
         ChoiceRow(children: [
           ChoiceCard(
-            selected: vsAi,
+            selected: color == 'w',
             color: gold,
-            icon: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 36),
-            label: 'Kompyuter',
-            onTap: () => setState(() => vsAi = true),
+            icon: const ChessPiece(piece: 'K', size: 44),
+            label: 'Oq',
+            hint: 'birinchi yurasiz',
+            onTap: () => setState(() => color = 'w'),
           ),
           ChoiceCard(
-            selected: !vsAi,
+            selected: color == 'b',
             color: gold,
-            icon: const Icon(Icons.people_alt_rounded, color: Colors.white, size: 36),
-            label: '2 kishi',
-            hint: 'bitta telefonda',
-            onTap: () => setState(() => vsAi = false),
+            icon: const ChessPiece(piece: 'k', size: 44),
+            label: 'Qora',
+            onTap: () => setState(() => color = 'b'),
           ),
         ]),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-          child: !vsAi
-              ? const SizedBox(width: double.infinity)
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 10),
-                    const SetupLabel('Siz qaysi rangda'),
-                    ChoiceRow(children: [
-                      ChoiceCard(
-                        selected: color == 'w',
-                        color: gold,
-                        icon: const ChessPiece(piece: 'K', size: 44),
-                        label: 'Oq',
-                        hint: 'birinchi yurasiz',
-                        onTap: () => setState(() => color = 'w'),
-                      ),
-                      ChoiceCard(
-                        selected: color == 'b',
-                        color: gold,
-                        icon: const ChessPiece(piece: 'k', size: 44),
-                        label: 'Qora',
-                        onTap: () => setState(() => color = 'b'),
-                      ),
-                    ]),
-                    const SizedBox(height: 10),
-                    const SetupLabel('Qiyinlik — smaylikni suring'),
-                    DifficultyRope(value: level, onChanged: (v) => setState(() => level = v)),
-                  ],
-                ),
-        ),
+        const SizedBox(height: 10),
+        const SetupLabel('Kompyuter — smaylikni suring'),
+        DifficultyRope(value: level, onChanged: (v) => setState(() => level = v)),
       ],
     ),
   );

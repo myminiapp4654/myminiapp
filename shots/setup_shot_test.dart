@@ -47,7 +47,7 @@ void main() {
         before: (t) async {
       await t.pump(const Duration(milliseconds: 1200));
       await openGame(t, 'Ludo');
-      await t.tap(find.byKey(const ValueKey('count-4')));
+      await t.tap(find.byKey(const ValueKey('count-3')));
       await t.pump(const Duration(milliseconds: 800));
     });
   });

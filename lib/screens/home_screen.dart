@@ -38,12 +38,13 @@ Future<void> _push(BuildContext context, Widget screen) =>
 
 Future<void> _openXo(BuildContext context) async {
   var size = 3;
+  var level = 2;
   const cyan = Color(0xFF4DE8FF);
-  final picked = await showGameSetup<int>(
+  final picked = await showGameSetup<({int size, int level})>(
     context,
     title: 'X-O',
     colors: const [Color(0xFF4DE8FF), Color(0xFF7B5CFF)],
-    onStart: () => size,
+    onStart: () => (size: size, level: level),
     builder: (ctx, setState) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -66,41 +67,54 @@ Future<void> _openXo(BuildContext context) async {
             onTap: () => setState(() => size = 10),
           ),
         ]),
+        const SizedBox(height: 10),
+        const SetupLabel('Kompyuter — smaylikni suring'),
+        DifficultyRope(value: level, onChanged: (v) => setState(() => level = v)),
       ],
     ),
   );
   if (picked == null || !context.mounted) return;
-  await _push(context, XoScreen(size: picked));
+  await _push(context, XoScreen(size: picked.size, level: picked.level));
 }
 
 final _games = <_GameInfo>[
-  _GameInfo('Ludo', '2–4 kishi • kompyuter', GameArt.ludo,
+  _GameInfo('Ludo', 'Kompyuterlarga qarshi', GameArt.ludo,
       const [Color(0xFF7B2FF7), Color(0xFFF107A3)], (context) async {
     final s = await showLudoSetup(context);
     if (s == null || !context.mounted) return;
     await _push(context, LudoScreen(players: s.players, ai: s.ai));
   }),
-  _GameInfo('Shaxmat', 'Kompyuter • 2 kishi', GameArt.chess,
+  _GameInfo('Shaxmat', 'Kompyuterga qarshi', GameArt.chess,
       const [Color(0xFF8E5A2B), Color(0xFF3B2412)], (context) async {
     final s = await showChessSetup(context);
     if (s == null || !context.mounted) return;
     await _push(context,
-        ChessScreen(vsAi: s.vsAi, humanColor: s.humanColor, level: s.level));
+        ChessScreen(vsAi: true, humanColor: s.humanColor, level: s.level));
   }),
-  _GameInfo('Dengiz jangi', '2 kishi', GameArt.battleship,
+  _GameInfo('Dengiz jangi', 'Kompyuterga qarshi', GameArt.battleship,
       const [Color(0xFF0B5FA5), Color(0xFF052848)],
-      (context) => _push(context, const BattleshipScreen())),
-  _GameInfo('Shashka', '2 kishi', GameArt.checkers,
+      (context) async {
+    final level = await showLevelSetup(context,
+        title: 'Dengiz jangi', colors: const [Color(0xFF4FD1FF), Color(0xFF1565C0)]);
+    if (level == null || !context.mounted) return;
+    await _push(context, BattleshipScreen(level: level));
+  }),
+  _GameInfo('Shashka', 'Kompyuterga qarshi', GameArt.checkers,
       const [Color(0xFFE65100), Color(0xFF6D1B00)],
-      (context) => _push(context, const CheckersScreen())),
-  _GameInfo('X-O', '2 kishi', GameArt.xo,
+      (context) async {
+    final level = await showLevelSetup(context,
+        title: 'Shashka', colors: const [Color(0xFFFFB347), Color(0xFFE65100)]);
+    if (level == null || !context.mounted) return;
+    await _push(context, CheckersScreen(level: level));
+  }),
+  _GameInfo('X-O', 'Kompyuterga qarshi', GameArt.xo,
       const [Color(0xFF1D4ED8), Color(0xFF0B1A4A)], _openXo),
-  _GameInfo('Chain Reaction', '2–8 kishi', GameArt.chain,
+  _GameInfo('Chain Reaction', '1–7 kompyuter', GameArt.chain,
       const [Color(0xFFE91E63), Color(0xFF4A0D2E)], (context) async {
     final s = await showChainSetup(context);
     if (s == null || !context.mounted) return;
     await _push(context,
-        ChainScreen(players: s.players, rows: s.rows, cols: s.cols));
+        ChainScreen(players: s.players, rows: s.rows, cols: s.cols, level: s.level));
   }),
   _GameInfo('Chain Burst', 'Bir bosish — zanjir', GameArt.orbs,
       const [Color(0xFF00A88F), Color(0xFF053B3A)],

@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oyinim/games/chain/chain_screen.dart';
+import 'package:oyinim/games/chain/chain_ai.dart';
 import 'package:oyinim/games/chain/chain_game.dart';
 
 void main() {
@@ -120,19 +123,43 @@ void main() {
     expect(g.count.every((c) => c == 0), isTrue);
   });
 
-  testWidgets("ekran: bosish, portlash to'lqini, navbat", (t) async {
-    await t.pumpWidget(const MaterialApp(home: ChainScreen()));
-    expect(find.text('Qizil navbati'), findsOneWidget);
+  testWidgets("ekran: siz yurasiz, kompyuter javob beradi", (t) async {
+    await t.pumpWidget(const MaterialApp(home: ChainScreen(seed: 1)));
+    expect(find.text('Sizning navbatingiz'), findsOneWidget);
     await t.tap(find.byKey(const ValueKey('cell-0')));
-    await t.pump(const Duration(milliseconds: 400));
-    expect(find.text("Ko'k navbati"), findsOneWidget);
-    await t.tap(find.byKey(const ValueKey('cell-30')));
-    await t.pump(const Duration(milliseconds: 400));
-    // Qizil burchakka 2-shar: portlaydi
-    await t.tap(find.byKey(const ValueKey('cell-0')));
-    await t.pump(const Duration(milliseconds: 1000));
-    expect(find.text("Ko'k navbati"), findsOneWidget);
+    await t.pump(const Duration(milliseconds: 300));
+    expect(find.text("Ko'k o'ylayapti…"), findsOneWidget);
+    // Kompyuter navbatida bosish hech narsa qilmaydi
+    await t.tap(find.byKey(const ValueKey('cell-5')));
+    await t.pump(const Duration(milliseconds: 1200));
+    expect(find.text('Sizning navbatingiz'), findsOneWidget);
     await t.pumpWidget(const SizedBox()); // titrash animatsiyasini to'xtatish
+  });
+
+  group('kompyuter', () {
+    test("yutuvchi yurishni topadi", () {
+      final h = ChainGame();
+      h.play(0);
+      h.play(1);
+      // Qizil: 0 burchakda 1 ta, ko'k: 1 da 1 ta. 0 ga qo'yilsa portlab ko'k yo'qoladi
+      expect(chainAiMove(h, 3, Random(1)), 0);
+      h.play(0);
+      expect(h.winner, 0);
+    });
+
+    test("darajalar: qiyin kompyuter osonini yutadi", () {
+      var wins = 0;
+      for (var n = 0; n < 4; n++) {
+        final g = ChainGame();
+        if (n.isOdd) g.newRound();
+        final r = Random(n);
+        for (var k = 0; k < 400 && !g.finished; k++) {
+          expect(g.play(chainAiMove(g, g.current == 0 ? 3 : 1, r)), isTrue);
+        }
+        if (g.winner == 0) wins++;
+      }
+      expect(wins, greaterThanOrEqualTo(3));
+    });
   });
 
   test("8 o'yinchi: navbat hammasidan aylanib chiqadi", () {

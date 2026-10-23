@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oyinim/games/checkers/checkers_screen.dart';
+import 'package:oyinim/games/checkers/checkers_ai.dart';
 import 'package:oyinim/games/checkers/checkers_game.dart';
 
 /// Bo'sh taxtaga donalar qo'yilgan o'yin. Kalit: (qator, ustun).
@@ -129,13 +132,58 @@ void main() {
     expect(g.count('w'), 12);
   });
 
-  testWidgets("ekran: dona tanlab yurish, navbat almashadi", (t) async {
-    await t.pumpWidget(const MaterialApp(home: CheckersScreen()));
-    expect(find.text('Oq navbati'), findsOneWidget);
+  test("faqat damkalar 15 tadan urishsiz yursa — durang", () {
+    final g = setup({(0, 1): 'W', (7, 6): 'B'});
+    // Damkalar bir-biriga yeta olmaydigan kataklar orasida yuradi
+    var k = 0;
+    while (!g.finished) {
+      final (from, to) = g.turn == 'w'
+          ? (g.board[sq(0, 1)].isNotEmpty ? (sq(0, 1), sq(1, 0)) : (sq(1, 0), sq(0, 1)))
+          : (g.board[sq(7, 6)].isNotEmpty ? (sq(7, 6), sq(6, 7)) : (sq(6, 7), sq(7, 6)));
+      expect(g.play(from, to), isTrue);
+      k++;
+    }
+    expect(g.winner, 'draw');
+    expect(k, CheckersGame.kingQuietLimit);
+  });
+
+  test("kompyuter: urishni o'tkazib yubormaydi, zanjirni oxirigacha uradi", () {
+    // Qora (6-qatorgacha) ikki marta ura oladi
+    final g = setup({(2, 1): 'b', (3, 2): 'w', (5, 4): 'w', (7, 0): 'w'}, turn: 'b');
+    final steps = checkersAiTurn(g, 3, Random(1));
+    expect(steps.length, 2);
+    for (final m in steps) {
+      expect(g.play(m.from, m.to), isTrue);
+    }
+    expect(g.count('w'), 1);
+    expect(g.turn, 'w');
+  });
+
+  test("darajalar: qiyin kompyuter osonini yutadi", () {
+    var wins = 0;
+    for (var n = 0; n < 3; n++) {
+      final g = CheckersGame();
+      final r = Random(n);
+      for (var k = 0; k < 300 && !g.finished; k++) {
+        for (final m in checkersAiTurn(g, g.turn == 'b' ? 3 : 1, r)) {
+          expect(g.play(m.from, m.to), isTrue);
+        }
+      }
+      if (g.winner == 'b') wins++;
+    }
+    expect(wins, 3);
+  });
+
+  testWidgets("ekran: siz yurasiz, kompyuter javob beradi", (t) async {
+    await t.pumpWidget(const MaterialApp(home: CheckersScreen(level: 1, seed: 1)));
+    expect(find.text('Sizning navbatingiz'), findsOneWidget);
     await t.tap(find.byKey(ValueKey('sq-${sq(5, 2)}')));
     await t.pump();
     await t.tap(find.byKey(ValueKey('sq-${sq(4, 3)}')));
     await t.pump();
-    expect(find.text('Qora navbati'), findsOneWidget);
+    expect(find.text("Kompyuter o'ylayapti…"), findsOneWidget);
+    await t.pump(const Duration(milliseconds: 1500));
+    expect(find.textContaining('Sizning navbatingiz'), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
   });
 }
