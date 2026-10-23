@@ -133,7 +133,7 @@ void main() {
     expect(easy, greaterThan(5));
   });
 
-  testWidgets("musobaqa: sanoq, yonma-yon minoralar, yiqilgach kuzatish, natijalar", (t) async {
+  testWidgets("musobaqa: sanoq, minoralar, yiqilgach natija darhol chiqadi", (t) async {
     t.view.physicalSize = const Size(1080, 2400);
     t.view.devicePixelRatio = 2.5;
     addTearDown(t.view.reset);
@@ -147,15 +147,14 @@ void main() {
     }
     // Ataylab chetga qo'yib yiqilamiz
     final area = find.byKey(const ValueKey('stack-race'));
-    for (var k = 0; k < 30 && find.textContaining('kuzatyapsiz').evaluate().isEmpty; k++) {
+    for (var k = 0; k < 30 && find.text("Yana o'ynash").evaluate().isEmpty; k++) {
       await t.tap(area);
       for (var f = 0; f < 3; f++) {
         await t.pump(const Duration(milliseconds: 50));
       }
     }
-    expect(find.textContaining('kuzatyapsiz'), findsOneWidget);
-    // Kompyuterlar tugatguncha kutamiz
-    for (var k = 0; k < 2000 && find.text("Yana o'ynash").evaluate().isEmpty; k++) {
+    // Raqiblar faqat kompyuter — natija kuzatishsiz, darhol chiqadi
+    for (var k = 0; k < 40 && find.text("Yana o'ynash").evaluate().isEmpty; k++) {
       await t.pump(const Duration(milliseconds: 50));
     }
     expect(find.text("Yana o'ynash"), findsOneWidget);

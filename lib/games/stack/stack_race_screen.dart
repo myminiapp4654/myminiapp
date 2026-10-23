@@ -166,11 +166,32 @@ class _StackRaceScreenState extends State<StackRaceScreen> with SingleTickerProv
       if (wasAlive && !l.alive) l.fellAt = _time;
       l.cam += (l.game.score - l.cam) * min(1.0, dt * 6);
     }
+    // Siz yiqildingiz, qolganlar faqat kompyuter — kuzatib o'tirish shart emas:
+    // ularning o'yini bir zumda oxirigacha hisoblanadi va natija darhol chiqadi
+    if (_endedAt == null && !_me.alive && _lanes.every((l) => l.isMe || l.bot != null)) {
+      for (final l in _lanes) {
+        if (l.alive) _fastForward(l);
+      }
+    }
     if (_endedAt == null && _lanes.every((l) => !l.alive)) {
       _endedAt = _time;
       HapticFeedback.heavyImpact();
     }
     setState(() {});
+  }
+
+  /// Kompyuter o'yinini ko'rsatmasdan oxirigacha o'ynatib qo'yadi.
+  void _fastForward(StackLane l) {
+    const dt = 1 / 60;
+    var t = 0.0;
+    final bot = l.bot!;
+    while (l.alive && t < 1200) {
+      l.game.update(dt);
+      t += dt;
+      if (bot.update(l.game, dt)) l.game.place();
+    }
+    l.fellAt = _time + t;
+    l.cam = l.game.score.toDouble();
   }
 
   void _tap() {

@@ -26,16 +26,12 @@ void main() {
     });
     // Yiqilamiz va kuzatamiz
     final area = find.byKey(const ValueKey('stack-race'));
-    for (var k = 0; k < 30 && find.textContaining('kuzatyapsiz').evaluate().isEmpty; k++) {
+    for (var k = 0; k < 30 && find.text("Yana o'ynash").evaluate().isEmpty; k++) {
       await t.tap(area);
       for (var f = 0; f < 3; f++) {
         await t.pump(const Duration(milliseconds: 50));
       }
     }
-    for (var f = 0; f < 60; f++) {
-      await t.pump(const Duration(milliseconds: 50));
-    }
-    await expectLater(find.byKey(const ValueKey('shot')), matchesGoldenFile('out/stack_race_watch.png'));
     for (var k = 0; k < 3000 && find.text("Yana o'ynash").evaluate().isEmpty; k++) {
       await t.pump(const Duration(milliseconds: 50));
     }
