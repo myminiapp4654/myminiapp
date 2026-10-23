@@ -43,10 +43,10 @@ void main() {
   });
 
   testWidgets('ludo setup', (t) async {
-    await shoot(t, 'setup_ludo', const HomeScreen(), pumps: const [Duration(milliseconds: 100), Duration(milliseconds: 400)],
+    await shoot(t, 'setup_snakes', const HomeScreen(), pumps: const [Duration(milliseconds: 100), Duration(milliseconds: 400)],
         before: (t) async {
       await t.pump(const Duration(milliseconds: 1200));
-      await openGame(t, 'Ludo');
+      await openGame(t, 'Ilon va narvon');
       await t.tap(find.byKey(const ValueKey('count-3')));
       await t.pump(const Duration(milliseconds: 800));
     });

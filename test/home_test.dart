@@ -10,7 +10,7 @@ void main() {
       await t.pumpWidget(const MaterialApp(home: HomeScreen()));
       await t.pump(const Duration(milliseconds: 1200));
       expect(t.takeException(), isNull);
-      expect(find.byKey(const ValueKey('game-Ludo')), findsOneWidget);
+      expect(find.byKey(const ValueKey('game-Ilon va narvon')), findsOneWidget);
       await t.pumpWidget(const SizedBox());
     }
     t.view.reset();

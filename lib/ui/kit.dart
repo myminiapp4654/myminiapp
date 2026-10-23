@@ -12,7 +12,7 @@ class GamePalette {
   const GamePalette(this.top, this.bottom, this.accent);
 
   static const home = GamePalette(Color(0xFF1B1446), Color(0xFF0A0A1F), Color(0xFF8C7BFF));
-  static const ludo = GamePalette(Color(0xFF3A1C71), Color(0xFF12082B), Color(0xFFFFC233));
+  static const snakes = GamePalette(Color(0xFF1B4D2B), Color(0xFF07170D), Color(0xFF9CCC65));
   static const chess = GamePalette(Color(0xFF2B2118), Color(0xFF0E0B08), Color(0xFFE8C07A));
   static const sea = GamePalette(Color(0xFF0B3D6B), Color(0xFF041A33), Color(0xFF4FD1FF));
   static const checkers = GamePalette(Color(0xFF3B1E10), Color(0xFF140A05), Color(0xFFFF8A3D));

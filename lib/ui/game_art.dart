@@ -6,7 +6,7 @@ import '../games/chess/chess_pieces.dart';
 import 'crown.dart';
 
 /// Bosh ekrandagi o'yin kartochkalari uchun kichik rasmlar.
-enum GameArt { xo, chess, checkers, battleship, ludo, chain, orbs, walls }
+enum GameArt { xo, chess, checkers, battleship, snakes, chain, orbs, walls }
 
 class GameArtPainter extends CustomPainter {
   final GameArt art;
@@ -27,8 +27,8 @@ class GameArtPainter extends CustomPainter {
         _checkers(canvas, s);
       case GameArt.battleship:
         _ship(canvas, s);
-      case GameArt.ludo:
-        _ludo(canvas, s);
+      case GameArt.snakes:
+        _snakes(canvas, s);
       case GameArt.chain:
         _chain(canvas, s);
       case GameArt.orbs:
@@ -157,33 +157,62 @@ class GameArtPainter extends CustomPainter {
           .createShader(Rect.fromCircle(center: boom, radius: s * 0.11)));
   }
 
-  void _ludo(Canvas c, double s) {
-    const colors = [Color(0xFFE53935), Color(0xFF43A047), Color(0xFFFDD835), Color(0xFF1E88E5)];
-    final q = s * 0.38;
-    final rects = [
-      Rect.fromLTWH(s * 0.1, s * 0.1, q, q),
-      Rect.fromLTWH(s * 0.52, s * 0.1, q, q),
-      Rect.fromLTWH(s * 0.52, s * 0.52, q, q),
-      Rect.fromLTWH(s * 0.1, s * 0.52, q, q),
-    ];
-    for (var k = 0; k < 4; k++) {
-      c.drawRRect(RRect.fromRectAndRadius(rects[k], Radius.circular(s * 0.06)), Paint()..color = colors[k]);
-      final center = rects[k].center;
-      c.drawCircle(center, q * 0.3, Paint()..color = Colors.white);
-      c.drawCircle(center, q * 0.18, _ball(center, q * 0.18, colors[k]));
+  void _snakes(Canvas c, double s) {
+    // O't taxta
+    final q = s * 0.8 / 5;
+    for (var r = 0; r < 5; r++) {
+      for (var k = 0; k < 5; k++) {
+        c.drawRect(
+          Rect.fromLTWH(s * 0.1 + k * q, s * 0.1 + r * q, q, q),
+          Paint()..color = (r + k).isEven ? const Color(0xFF8BC34A) : const Color(0xFF7CB342),
+        );
+      }
     }
-    // Tosh
-    final d = Rect.fromCenter(center: Offset(s * 0.5, s * 0.5), width: s * 0.3, height: s * 0.3);
-    c.save();
-    c.translate(d.center.dx, d.center.dy);
-    c.rotate(sin(t * 2 * pi) * 0.2);
-    c.translate(-d.center.dx, -d.center.dy);
-    c.drawRRect(RRect.fromRectAndRadius(d.shift(Offset(0, s * 0.02)), Radius.circular(s * 0.05)), Paint()..color = Colors.black38);
-    c.drawRRect(RRect.fromRectAndRadius(d, Radius.circular(s * 0.05)), Paint()..color = Colors.white);
-    for (final p in [const Offset(-1, -1), const Offset(1, -1), Offset.zero, const Offset(-1, 1), const Offset(1, 1)]) {
-      c.drawCircle(d.center + p * (s * 0.075), s * 0.025, Paint()..color = Colors.black87);
+    // Narvon
+    final a = Offset(s * 0.28, s * 0.84), b = Offset(s * 0.42, s * 0.2);
+    final d = b - a;
+    final n = Offset(-d.dy, d.dx) / d.distance * s * 0.05;
+    final wood = Paint()
+      ..color = const Color(0xFFA0642C)
+      ..strokeWidth = s * 0.022
+      ..strokeCap = StrokeCap.round;
+    c.drawLine(a + n, b + n, wood);
+    c.drawLine(a - n, b - n, wood);
+    for (var k = 1; k < 8; k++) {
+      final p = Offset.lerp(a, b, k / 8)!;
+      c.drawLine(p - n, p + n, wood..color = const Color(0xFFD7A15F));
     }
-    c.restore();
+    // Ilon (to'lqinli, asta tebranadi)
+    final body = <Offset>[];
+    for (var k = 0; k <= 60; k++) {
+      final t = k / 60;
+      final x = s * (0.72 - 0.12 * t) + sin(t * pi * 3 + this.t * pi * 2) * s * 0.07;
+      final y = s * (0.18 + 0.66 * t);
+      body.add(Offset(x, y));
+    }
+    for (var k = body.length - 1; k >= 0; k--) {
+      final w = s * (0.075 - 0.05 * k / 60);
+      c.drawCircle(body[k], w + s * 0.01, Paint()..color = const Color(0xFF8E1B1B));
+    }
+    for (var k = body.length - 1; k >= 0; k--) {
+      final w = s * (0.075 - 0.05 * k / 60);
+      c.drawCircle(body[k], w, Paint()..color = (k ~/ 6).isOdd ? const Color(0xFFFFEB3B) : const Color(0xFFE53935));
+    }
+    final h = body.first;
+    c.drawCircle(h, s * 0.085, Paint()..color = const Color(0xFFE53935));
+    for (final side in const [-1.0, 1.0]) {
+      final e = h + Offset(side * s * 0.035, -s * 0.02);
+      c.drawCircle(e, s * 0.022, Paint()..color = Colors.white);
+      c.drawCircle(e + Offset(0, -s * 0.005), s * 0.011, Paint()..color = Colors.black);
+    }
+    // Zar
+    final die = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(s * 0.27, s * 0.3), width: s * 0.2, height: s * 0.2), Radius.circular(s * 0.04));
+    c.drawRRect(die.shift(Offset(s * 0.01, s * 0.015)), Paint()..color = Colors.black38);
+    c.drawRRect(die, Paint()..color = Colors.white);
+    for (final o in const [Offset(-1, -1), Offset(1, 1), Offset(0, 0)]) {
+      c.drawCircle(die.center + o * s * 0.05, s * 0.017, Paint()..color = const Color(0xFF1A1A2E));
+    }
   }
 
   void _chain(Canvas c, double s) {

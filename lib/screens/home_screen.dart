@@ -4,7 +4,7 @@ import '../games/battleship/battleship_screen.dart';
 import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
 import '../games/chess/chess_screen.dart';
-import '../games/ludo/ludo_screen.dart';
+import '../games/snakes/snakes_screen.dart';
 import '../games/orbs/orbs_screen.dart';
 import '../games/walls/walls_screen.dart';
 import '../games/xo/xo_screen.dart';
@@ -78,11 +78,11 @@ Future<void> _openXo(BuildContext context) async {
 }
 
 final _games = <_GameInfo>[
-  _GameInfo('Ludo', 'Kompyuterlarga qarshi', GameArt.ludo,
-      const [Color(0xFF7B2FF7), Color(0xFFF107A3)], (context) async {
-    final s = await showLudoSetup(context);
-    if (s == null || !context.mounted) return;
-    await _push(context, LudoScreen(players: s.players, ai: s.ai));
+  _GameInfo('Ilon va narvon', 'Har safar yangi taxta', GameArt.snakes,
+      const [Color(0xFF43A047), Color(0xFF1B4D2B)], (context) async {
+    final bots = await showSnakesSetup(context);
+    if (bots == null || !context.mounted) return;
+    await _push(context, SnakesScreen(players: bots + 1));
   }),
   _GameInfo('Shaxmat', 'Kompyuterga qarshi', GameArt.chess,
       const [Color(0xFF8E5A2B), Color(0xFF3B2412)], (context) async {
