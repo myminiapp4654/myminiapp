@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../games/battleship/battleship_screen.dart';
 import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
+import '../games/walls/walls_screen.dart';
 import '../games/xo/xo_screen.dart';
 
 /// Bosh ekran: o'yinlar ro'yxati.
@@ -90,6 +91,16 @@ class HomeScreen extends StatelessWidget {
                   ),
                 );
               },
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.fort),
+              title: const Text('Escape the Walls'),
+              subtitle: const Text('Bir kishi: devorlarni buzib qoching'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const WallsScreen())),
             ),
           ),
         ],
