@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../net/server_client.dart';
 import '../telegram/telegram.dart';
+import '../ui/kit.dart';
 import 'home_screen.dart';
 
 /// Ilova ochilganda: serverga ulanadi va foydalanuvchini kiritadi.
@@ -56,18 +57,40 @@ class _StartScreenState extends State<StartScreen> {
       builder: (context, user, _) {
         if (user != null) return const HomeScreen();
         return Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: ValueListenableBuilder<String?>(
-                valueListenable: _server.authError,
-                builder: (context, error, _) {
-                  if (error != null) return _buildError(error);
-                  if (Telegram.isAvailable || _devStarted) {
-                    return _buildConnecting();
-                  }
-                  return _buildDevForm();
-                },
+          backgroundColor: GamePalette.home.bottom,
+          body: GameBackground(
+            palette: GamePalette.home,
+            child: SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0.6, end: 1),
+                        duration: const Duration(milliseconds: 900),
+                        curve: Curves.elasticOut,
+                        builder: (_, v, child) => Transform.scale(scale: v, child: child),
+                        child: const GlowText('OYINIM', size: 44, color: Color(0xFFB9AEFF)),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text("Do'stlar bilan o'yinlar",
+                          style: TextStyle(color: Colors.white60, fontSize: 15)),
+                      const SizedBox(height: 40),
+                      ValueListenableBuilder<String?>(
+                        valueListenable: _server.authError,
+                        builder: (context, error, _) {
+                          if (error != null) return _buildError(error);
+                          if (Telegram.isAvailable || _devStarted) {
+                            return _buildConnecting();
+                          }
+                          return _buildDevForm();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -82,68 +105,100 @@ class _StartScreenState extends State<StartScreen> {
       valueListenable: _server.state,
       builder: (context, state, _) {
         if (state != ConnState.offline) {
-          return const CircularProgressIndicator();
+          return const SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFFB9AEFF)),
+          );
         }
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Serverga ulanib bo'lmadi, qayta urinilmoqda..."),
-            const SizedBox(height: 8),
-            Text(_server.serverUrl,
-                style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _server.retryNow,
-              child: const Text('Hozir qayta urinish'),
-            ),
-            if (!Telegram.isAvailable)
-              TextButton(
-                onPressed: () => setState(() => _devStarted = false),
-                child: const Text('Orqaga'),
+        return Glass(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.wifi_off_rounded, color: Color(0xFFFF8A80), size: 36),
+              const SizedBox(height: 8),
+              const Text("Serverga ulanib bo'lmadi, qayta urinilmoqda...",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text(_server.serverUrl,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              const SizedBox(height: 16),
+              GameButton(
+                label: 'Hozir qayta urinish',
+                icon: Icons.refresh_rounded,
+                colors: const [Color(0xFF8C7BFF), Color(0xFF5B3FD9)],
+                onPressed: _server.retryNow,
               ),
-          ],
+              if (!Telegram.isAvailable)
+                TextButton(
+                  onPressed: () => setState(() => _devStarted = false),
+                  child: const Text('Orqaga', style: TextStyle(color: Colors.white70)),
+                ),
+            ],
+          ),
         );
       },
     );
   }
 
   Widget _buildError(String error) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(error, textAlign: TextAlign.center),
-        if (!Telegram.isAvailable) ...[
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () {
-              _server.authError.value = null;
-              setState(() => _devStarted = false);
-            },
-            child: const Text('Orqaga'),
-          ),
+    return Glass(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.info_outline_rounded, color: Color(0xFFFFD54F), size: 36),
+          const SizedBox(height: 8),
+          Text(error,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          if (!Telegram.isAvailable) ...[
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () {
+                _server.authError.value = null;
+                setState(() => _devStarted = false);
+              },
+              child: const Text('Orqaga', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
   Widget _buildDevForm() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('Test rejimi'),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _nameController,
-          maxLength: 30,
-          decoration: const InputDecoration(
-            labelText: 'Ismingiz',
-            border: OutlineInputBorder(),
+    return Glass(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Test rejimi',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _nameController,
+            maxLength: 30,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: 'Ismingiz',
+              filled: true,
+              fillColor: Colors.white.withValues(alpha: 0.06),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            onSubmitted: (_) => _devLogin(),
           ),
-          onSubmitted: (_) => _devLogin(),
-        ),
-        const SizedBox(height: 8),
-        FilledButton(onPressed: _devLogin, child: const Text('Kirish')),
-      ],
+          const SizedBox(height: 8),
+          GameButton(
+            label: 'Kirish',
+            icon: Icons.login_rounded,
+            colors: const [Color(0xFF8C7BFF), Color(0xFF5B3FD9)],
+            onPressed: _devLogin,
+          ),
+        ],
+      ),
     );
   }
 }

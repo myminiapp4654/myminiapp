@@ -71,8 +71,8 @@ class Telegram {
     try {
       app.callMethod('ready'.toJS);
       app.callMethod('expand'.toJS);
-      app.callMethod('setHeaderColor'.toJS, '#121212'.toJS);
-      app.callMethod('setBackgroundColor'.toJS, '#121212'.toJS);
+      app.callMethod('setHeaderColor'.toJS, '#1B1446'.toJS);
+      app.callMethod('setBackgroundColor'.toJS, '#1B1446'.toJS);
       // Tasodifan pastga surib ilovani yopib qo'ymaslik uchun
       app.callMethod('disableVerticalSwipes'.toJS);
     } catch (_) {
