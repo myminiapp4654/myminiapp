@@ -1,0 +1,36 @@
+{
+  // F5 -> "Server + Ilova": lokal server va Chrome'da ilova birga ishga tushadi.
+  // Kodni saqlasangiz (Ctrl+S) o'zgarish darhol ko'rinadi (hot reload).
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Server (lokal)",
+      "type": "dart",
+      "request": "launch",
+      "program": "server/bin/server.dart",
+      "cwd": "server",
+      "env": {
+        "DEV_LOGIN": "true",
+        "PORT": "8080"
+      }
+    },
+    {
+      "name": "Ilova (Chrome)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "args": [
+        "--dart-define=SERVER_URL=ws://localhost:8080/ws",
+        "--web-port=5000"
+      ]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Server + Ilova",
+      "configurations": ["Server (lokal)", "Ilova (Chrome)"],
+      "stopAll": true
+    }
+  ]
+}
