@@ -12,6 +12,7 @@ class GamePalette {
   const GamePalette(this.top, this.bottom, this.accent);
 
   static const home = GamePalette(Color(0xFF1B1446), Color(0xFF0A0A1F), Color(0xFF8C7BFF));
+  static const snake = GamePalette(Color(0xFF0B0820), Color(0xFF020107), Color(0xFF00F5FF));
   static const maze = GamePalette(Color(0xFF3A2216), Color(0xFF0E0806), Color(0xFFFFC233));
   static const snakes = GamePalette(Color(0xFF1B4D2B), Color(0xFF07170D), Color(0xFF9CCC65));
   static const chess = GamePalette(Color(0xFF2B2118), Color(0xFF0E0B08), Color(0xFFE8C07A));

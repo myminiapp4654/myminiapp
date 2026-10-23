@@ -6,7 +6,7 @@ import '../games/chess/chess_pieces.dart';
 import 'crown.dart';
 
 /// Bosh ekrandagi o'yin kartochkalari uchun kichik rasmlar.
-enum GameArt { xo, chess, checkers, battleship, snakes, maze, chain, orbs, walls }
+enum GameArt { xo, chess, checkers, battleship, snakes, maze, snake, chain, orbs, walls }
 
 class GameArtPainter extends CustomPainter {
   final GameArt art;
@@ -31,6 +31,8 @@ class GameArtPainter extends CustomPainter {
         _snakes(canvas, s);
       case GameArt.maze:
         _maze(canvas, s);
+      case GameArt.snake:
+        _neonSnake(canvas, s);
       case GameArt.chain:
         _chain(canvas, s);
       case GameArt.orbs:
@@ -261,6 +263,51 @@ class GameArtPainter extends CustomPainter {
     );
     final (hr, hc) = route[shown - 1];
     c.drawCircle(Offset(o + (hc + 0.5) * q, o + (hr + 0.5) * q), q * 0.32, Paint()..color = Colors.white);
+  }
+
+  void _neonSnake(Canvas c, double s) {
+    c.drawRect(Rect.fromLTWH(s * 0.06, s * 0.06, s * 0.88, s * 0.88), Paint()..color = const Color(0xFF05040B));
+    // Ozuqa
+    const foodColors = [Color(0xFFFF2E97), Color(0xFFB4FF39), Color(0xFFFFE53B), Color(0xFFB967FF)];
+    final rnd = Random(3);
+    for (var k = 0; k < 16; k++) {
+      final p = Offset(s * (0.12 + rnd.nextDouble() * 0.76), s * (0.12 + rnd.nextDouble() * 0.76));
+      final col = foodColors[k % foodColors.length];
+      c.drawCircle(p, s * 0.022, Paint()..color = col.withValues(alpha: 0.25));
+      c.drawCircle(p, s * 0.011, Paint()..color = col);
+    }
+    // Ilon (sekin to'lqinlanadi)
+    const color = Color(0xFF00F5FF);
+    final pts = <Offset>[
+      for (var k = 0; k <= 40; k++)
+        Offset(
+          s * (0.18 + 0.64 * k / 40),
+          s * (0.55 + 0.16 * sin(k / 40 * pi * 2.2 + t * pi * 2)),
+        ),
+    ];
+    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+    for (final p in pts.skip(1)) {
+      path.lineTo(p.dx, p.dy);
+    }
+    c.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.12
+        ..strokeCap = StrokeCap.round
+        ..color = color.withValues(alpha: 0.3)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, s * 0.03),
+    );
+    for (var k = 0; k < pts.length; k++) {
+      c.drawCircle(pts[k], s * 0.045, Paint()..color = (k ~/ 4).isEven ? color : const Color(0xFF008C93));
+    }
+    final h = pts.last;
+    c.drawCircle(h, s * 0.055, Paint()..color = color);
+    for (final dy in const [-1.0, 1.0]) {
+      final e = h + Offset(s * 0.015, dy * s * 0.025);
+      c.drawCircle(e, s * 0.02, Paint()..color = Colors.white);
+      c.drawCircle(e + Offset(s * 0.007, 0), s * 0.01, Paint()..color = Colors.black);
+    }
   }
 
   void _chain(Canvas c, double s) {

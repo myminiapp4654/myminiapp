@@ -5,6 +5,7 @@ import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
 import '../games/chess/chess_screen.dart';
 import '../games/maze/maze_screen.dart';
+import '../games/snake/snake_screen.dart';
 import '../games/snakes/snakes_screen.dart';
 import '../games/orbs/orbs_screen.dart';
 import '../games/walls/walls_screen.dart';
@@ -116,6 +117,13 @@ final _games = <_GameInfo>[
         title: 'Labirint', colors: const [Color(0xFFFFC233), Color(0xFFB4532A)]);
     if (level == null || !context.mounted) return;
     await _push(context, MazeScreen(level: level));
+  }),
+  _GameInfo('Neon Snake', 'Eng uzun ilon bo\'ling', GameArt.snake,
+      const [Color(0xFF00B8C4), Color(0xFF0B0820)], (context) async {
+    final level = await showLevelSetup(context,
+        title: 'Neon Snake', colors: const [Color(0xFF00F5FF), Color(0xFFB967FF)]);
+    if (level == null || !context.mounted) return;
+    await _push(context, SnakeScreen(level: level));
   }),
   _GameInfo('Chain Reaction', '1–7 kompyuter', GameArt.chain,
       const [Color(0xFFE91E63), Color(0xFF4A0D2E)], (context) async {

@@ -5,6 +5,7 @@ import 'package:oyinim/games/chain/chain_screen.dart';
 import 'package:oyinim/games/checkers/checkers_screen.dart';
 import 'package:oyinim/games/chess/chess_screen.dart';
 import 'package:oyinim/games/maze/maze_screen.dart';
+import 'package:oyinim/games/snake/snake_screen.dart';
 import 'package:oyinim/games/snakes/snakes_screen.dart';
 import 'package:oyinim/games/orbs/orbs_screen.dart';
 import 'package:oyinim/games/walls/walls_screen.dart';
@@ -17,6 +18,7 @@ void main() {
     'home': const HomeScreen(),
     'snakes4': const SnakesScreen(players: 4, seed: 1),
     'maze3': const MazeScreen(level: 3, seed: 1),
+    'snake': const SnakeScreen(level: 2, seed: 1),
     'chess': const ChessScreen(),
     'battleship': const BattleshipScreen(),
     'checkers': const CheckersScreen(),
