@@ -28,7 +28,8 @@ void main() {
     w.steer(0); // o'ngga (boshida tepaga qarab turibdi)
     w.update(0.1);
     final a1 = w.player.angle;
-    expect((w.player.head - start).distance, closeTo(SnakeWorld.speed * 0.1, 1));
+    // Yoy bo'ylab yurgani uchun to'g'ri chiziqdan biroz qisqa
+    expect((w.player.head - start).distance, closeTo(SnakeWorld.speed * 0.1, 2.5));
     expect(a1, greaterThan(-pi / 2)); // burila boshladi
     expect(a1, lessThan(0)); // lekin birdan emas
     for (var k = 0; k < 30; k++) {
@@ -40,6 +41,22 @@ void main() {
     for (var k = 1; k < s.length; k++) {
       expect((s[k] - s[k - 1]).distance, lessThanOrEqualTo(SnakeWorld.spacing + 0.001));
     }
+  });
+
+  test("keskin buriladi, lekin 150° dan ortiq emas (o'z ustiga qayrilmaydi)", () {
+    final w = alone();
+    final p = w.player;
+    final start = p.angle; // tepaga
+    w.steer(start + pi); // to'g'ri ortga
+    expect((p.targetAngle - start).abs(), closeTo(150 * pi / 180, 1e-9));
+    for (var k = 0; k < 15; k++) {
+      w.update(1 / 60);
+    }
+    // 0.25 soniyada 150° ga burilib bo'ldi
+    expect((p.angle - start).abs(), closeTo(150 * pi / 180, 1e-6));
+    // 140° so'ralsa — to'liq 140°
+    w.steer(p.angle + 140 * pi / 180);
+    expect(p.targetAngle - p.angle, closeTo(140 * pi / 180, 1e-9));
   });
 
   test('ozuqa yeganda ilon uzayadi', () {

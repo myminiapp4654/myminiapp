@@ -16,7 +16,10 @@ class SnakeWorld {
   static const radius = 1400.0;
   static const spacing = 8.0; // bo'g'imlar orasidagi masofa
   static const speed = 165.0; // birlik/soniya
-  static const turnRate = 7.5; // radian/soniya (tez, sezgir burilish)
+  static const turnRate = 13.0; // radian/soniya: 150° ~0.2 soniyada
+
+  /// Bir harakatda eng ko'pi 150° burilish — ilon o'z ustiga qayrilib ketmaydi.
+  static const maxTurn = 150 * pi / 180;
   static const foodTarget = 420;
   static const startLength = 14;
 
@@ -79,7 +82,13 @@ class SnakeWorld {
   Snake get player => snakes.first;
 
   /// O'yinchining yo'nalishini o'zgartirish (joystik).
-  void steer(double angle) => player.targetAngle = angle;
+  /// Joystik ortga qaratilsa ham ilon 150° dan ortiq burilmaydi.
+  void steer(double angle) {
+    final p = player;
+    var diff = (angle - p.angle) % (2 * pi);
+    if (diff > pi) diff -= 2 * pi;
+    p.targetAngle = p.angle + diff.clamp(-maxTurn, maxTurn);
+  }
 
   // ---------------------------------------------------------------- paydo bo'lish
 
