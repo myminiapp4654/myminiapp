@@ -4,6 +4,7 @@ import '../games/battleship/battleship_screen.dart';
 import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
 import '../games/walls/walls_screen.dart';
+import '../games/ludo/ludo_screen.dart';
 import '../games/orbs/orbs_screen.dart';
 import '../games/xo/xo_screen.dart';
 
@@ -89,6 +90,24 @@ class HomeScreen extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => ChainScreen(
                         players: s.players, rows: s.rows, cols: s.cols),
+                  ),
+                );
+              },
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.casino),
+              title: const Text('Ludo'),
+              subtitle: const Text('2–4 kishi yoki kompyuterga qarshi'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final s = await showLudoSetup(context);
+                if (s == null || !context.mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LudoScreen(players: s.players, ai: s.ai),
                   ),
                 );
               },
