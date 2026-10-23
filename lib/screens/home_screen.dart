@@ -4,156 +4,293 @@ import '../games/battleship/battleship_screen.dart';
 import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
 import '../games/chess/chess_screen.dart';
-import '../games/walls/walls_screen.dart';
 import '../games/ludo/ludo_screen.dart';
 import '../games/orbs/orbs_screen.dart';
+import '../games/walls/walls_screen.dart';
 import '../games/xo/xo_screen.dart';
+import '../net/server_client.dart';
+import '../ui/game_art.dart';
+import '../ui/kit.dart';
 
-/// Bosh ekran: o'yinlar ro'yxati.
-class HomeScreen extends StatelessWidget {
+class _GameInfo {
+  final String title;
+  final String tag;
+  final GameArt art;
+  final List<Color> colors;
+  final Future<void> Function(BuildContext) open;
+  const _GameInfo(this.title, this.tag, this.art, this.colors, this.open);
+}
+
+Future<void> _push(BuildContext context, Widget screen) =>
+    Navigator.push(context, PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 350),
+      pageBuilder: (_, _, _) => screen,
+      transitionsBuilder: (_, a, _, child) => FadeTransition(
+        opacity: a,
+        child: ScaleTransition(
+          scale: Tween(begin: 0.96, end: 1.0)
+              .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+      ),
+    ));
+
+Future<void> _openXo(BuildContext context) async {
+  final size = await showDialog<int>(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      title: const Text('X-O'),
+      children: [
+        SimpleDialogOption(
+          onPressed: () => Navigator.pop(ctx, 3),
+          child: const ListTile(
+            title: Text('3 × 3'),
+            subtitle: Text('3 tasi bir qatorda — yutadi'),
+          ),
+        ),
+        SimpleDialogOption(
+          onPressed: () => Navigator.pop(ctx, 10),
+          child: const ListTile(
+            title: Text('10 × 10'),
+            subtitle: Text('5 tasi bir qatorda — yutadi'),
+          ),
+        ),
+      ],
+    ),
+  );
+  if (size == null || !context.mounted) return;
+  await _push(context, XoScreen(size: size));
+}
+
+final _games = <_GameInfo>[
+  _GameInfo('Ludo', '2–4 kishi • kompyuter', GameArt.ludo,
+      const [Color(0xFF7B2FF7), Color(0xFFF107A3)], (context) async {
+    final s = await showLudoSetup(context);
+    if (s == null || !context.mounted) return;
+    await _push(context, LudoScreen(players: s.players, ai: s.ai));
+  }),
+  _GameInfo('Shaxmat', 'Kompyuter • 2 kishi', GameArt.chess,
+      const [Color(0xFF8E5A2B), Color(0xFF3B2412)], (context) async {
+    final s = await showChessSetup(context);
+    if (s == null || !context.mounted) return;
+    await _push(context,
+        ChessScreen(vsAi: s.vsAi, humanColor: s.humanColor, level: s.level));
+  }),
+  _GameInfo('Dengiz jangi', '2 kishi', GameArt.battleship,
+      const [Color(0xFF0B5FA5), Color(0xFF052848)],
+      (context) => _push(context, const BattleshipScreen())),
+  _GameInfo('Shashka', '2 kishi', GameArt.checkers,
+      const [Color(0xFFE65100), Color(0xFF6D1B00)],
+      (context) => _push(context, const CheckersScreen())),
+  _GameInfo('X-O', '2 kishi', GameArt.xo,
+      const [Color(0xFF1D4ED8), Color(0xFF0B1A4A)], _openXo),
+  _GameInfo('Chain Burst', '2–8 kishi', GameArt.chain,
+      const [Color(0xFFE91E63), Color(0xFF4A0D2E)], (context) async {
+    final s = await showChainSetup(context);
+    if (s == null || !context.mounted) return;
+    await _push(context,
+        ChainScreen(players: s.players, rows: s.rows, cols: s.cols));
+  }),
+  _GameInfo('Sharlar', 'Boshqotirma', GameArt.orbs,
+      const [Color(0xFF00A88F), Color(0xFF053B3A)],
+      (context) => _push(context, const OrbsScreen())),
+  _GameInfo('Escape the Walls', 'Devor buzish', GameArt.walls,
+      const [Color(0xFFD35400), Color(0xFF4A1A06)],
+      (context) => _push(context, const WallsScreen())),
+];
+
+/// Bosh ekran: o'yinlar galereyasi.
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  Future<void> _openXo(BuildContext context) async {
-    final size = await showDialog<int>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('X-O'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 3),
-            child: const ListTile(
-              title: Text('3 × 3'),
-              subtitle: Text('3 tasi bir qatorda — yutadi'),
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  late final AnimationController _intro =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
+        ..forward();
+  late final AnimationController _loop =
+      AnimationController(vsync: this, duration: const Duration(seconds: 3))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _intro.dispose();
+    _loop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = ServerClient.instance.user.value?.name;
+    return GameScaffold(
+      title: 'OYINIM',
+      palette: GamePalette.home,
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+            sliver: SliverToBoxAdapter(
+              child: FadeTransition(
+                opacity: _intro,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name == null ? 'Salom! 👋' : 'Salom, $name! 👋',
+                        style: const TextStyle(color: Colors.white70, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    const Text("Bugun nima o'ynaymiz?",
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ),
             ),
           ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 10),
-            child: const ListTile(
-              title: Text('10 × 10'),
-              subtitle: Text('5 tasi bir qatorda — yutadi'),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: 0.82,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, i) {
+                  final start = (i * 0.08).clamp(0.0, 0.6);
+                  final anim = CurvedAnimation(
+                    parent: _intro,
+                    curve: Interval(start, start + 0.4, curve: Curves.easeOutBack),
+                  );
+                  return AnimatedBuilder(
+                    animation: anim,
+                    builder: (_, child) => Opacity(
+                      opacity: anim.value.clamp(0, 1),
+                      child: Transform.translate(
+                        offset: Offset(0, 40 * (1 - anim.value)),
+                        child: child,
+                      ),
+                    ),
+                    child: _GameTile(info: _games[i], loop: _loop),
+                  );
+                },
+                childCount: _games.length,
+              ),
             ),
           ),
         ],
       ),
     );
-    if (size == null || !context.mounted) return;
-    Navigator.push(
-        context, MaterialPageRoute(builder: (_) => XoScreen(size: size)));
   }
+}
+
+class _GameTile extends StatefulWidget {
+  final _GameInfo info;
+  final Animation<double> loop;
+  const _GameTile({required this.info, required this.loop});
+
+  @override
+  State<_GameTile> createState() => _GameTileState();
+}
+
+class _GameTileState extends State<_GameTile> {
+  bool _down = false;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Oyinim')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.grid_3x3),
-              title: const Text('X-O'),
-              subtitle: const Text('Ikki kishi, bitta telefonda'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _openXo(context),
+    final g = widget.info;
+    return GestureDetector(
+      key: ValueKey('game-${g.title}'),
+      onTapDown: (_) => setState(() => _down = true),
+      onTapCancel: () => setState(() => _down = false),
+      onTapUp: (_) => setState(() => _down = false),
+      onTap: () => g.open(context),
+      child: AnimatedScale(
+        scale: _down ? 0.95 : 1,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: g.colors,
             ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+            boxShadow: [
+              BoxShadow(
+                color: g.colors.first.withValues(alpha: 0.45),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.castle),
-              title: const Text('Shaxmat'),
-              subtitle: const Text('Kompyuterga qarshi yoki 2 kishi'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final s = await showChessSetup(context);
-                if (s == null || !context.mounted) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChessScreen(
-                        vsAi: s.vsAi, humanColor: s.humanColor, level: s.level),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: -40,
+                  left: -30,
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(colors: [
+                        Colors.white.withValues(alpha: 0.25),
+                        Colors.white.withValues(alpha: 0),
+                      ]),
+                    ),
                   ),
-                );
-              },
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.circle_outlined),
-              title: const Text('Shashka'),
-              subtitle: const Text('Ikki kishi, bitta telefonda'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const CheckersScreen())),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.directions_boat),
-              title: const Text('Dengiz jangi'),
-              subtitle: const Text('Ikki kishi, bitta telefonda'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const BattleshipScreen())),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.bubble_chart),
-              title: const Text('Chain Burst'),
-              subtitle: const Text('2–8 kishi, bitta telefonda'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final s = await showChainSetup(context);
-                if (s == null || !context.mounted) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChainScreen(
-                        players: s.players, rows: s.rows, cols: s.cols),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: RepaintBoundary(
+                          child: AnimatedBuilder(
+                            animation: widget.loop,
+                            builder: (_, _) => CustomPaint(
+                              size: Size.infinite,
+                              painter: GameArtPainter(g.art, widget.loop.value),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(g.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          )),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(g.tag,
+                            style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.casino),
-              title: const Text('Ludo'),
-              subtitle: const Text('2–4 kishi yoki kompyuterga qarshi'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final s = await showLudoSetup(context);
-                if (s == null || !context.mounted) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => LudoScreen(players: s.players, ai: s.ai),
-                  ),
-                );
-              },
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.blur_circular),
-              title: const Text('Chain Burst: Sharlar'),
-              subtitle: const Text('Bir kishi: fizikali boshqotirma'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const OrbsScreen())),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.fort),
-              title: const Text('Escape the Walls'),
-              subtitle: const Text('Bir kishi: devorlarni buzib qoching'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const WallsScreen())),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

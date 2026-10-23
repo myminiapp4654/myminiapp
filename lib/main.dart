@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'net/server_client.dart';
 import 'screens/start_screen.dart';
 import 'telegram/telegram.dart';
+import 'ui/theme.dart';
 import 'widgets/connectivity_wrapper.dart';
 
 final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -35,11 +36,7 @@ class MyApp extends StatelessWidget {
       title: 'Oyinim',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.blue,
-        brightness: Brightness.dark,
-        useMaterial3: true,
-      ),
+      theme: buildAppTheme(),
       builder: (context, child) => ConnectivityWrapper(child: child!),
       home: const StartScreen(),
     );

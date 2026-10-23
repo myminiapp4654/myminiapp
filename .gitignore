@@ -54,3 +54,4 @@ android/key.properties
 android/build/
 .claude/settings.local.json
 server/data/
+shots/out/
