@@ -11,8 +11,14 @@ const kChainColors = [
   Color(0xFF40C4FF),
   Color(0xFFFFD740),
   Color(0xFF69F0AE),
+  Color(0xFFB388FF),
+  Color(0xFFFF9100),
+  Color(0xFFFF80AB),
+  Color(0xFFECEFF1),
 ];
-const kChainNames = ['Qizil', "Ko'k", 'Sariq', 'Yashil'];
+const kChainNames = [
+  'Qizil', "Ko'k", 'Sariq', 'Yashil', 'Binafsha', "To'q sariq", 'Pushti', 'Oq',
+];
 
 /// O'yin sozlamalari: o'yinchilar soni va taxta o'lchami.
 Future<({int players, int rows, int cols})?> showChainSetup(
@@ -23,21 +29,24 @@ Future<({int players, int rows, int cols})?> showChainSetup(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setState) => AlertDialog(
-        title: const Text('Chain Reaction'),
+        title: const Text('Chain Burst'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text("O'yinchilar"),
             const SizedBox(height: 8),
-            SegmentedButton<int>(
-              segments: const [
-                ButtonSegment(value: 2, label: Text('2')),
-                ButtonSegment(value: 3, label: Text('3')),
-                ButtonSegment(value: 4, label: Text('4')),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (var n = 2; n <= 8; n++)
+                  ChoiceChip(
+                    label: Text('$n'),
+                    selected: players == n,
+                    onSelected: (_) => setState(() => players = n),
+                  ),
               ],
-              selected: {players},
-              onSelectionChanged: (s) => setState(() => players = s.first),
             ),
             const SizedBox(height: 16),
             const Text('Taxta'),
@@ -129,7 +138,7 @@ class _ChainScreenState extends State<ChainScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chain Reaction'),
+        title: const Text('Chain Burst'),
         actions: [
           IconButton(
             tooltip: 'Yurishni qaytarish',

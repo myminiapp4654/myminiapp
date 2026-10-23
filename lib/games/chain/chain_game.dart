@@ -1,4 +1,4 @@
-/// Chain Reaction: 2–4 o'yinchi, bitta telefonda.
+/// Chain Burst (Chain Reaction): 2–8 o'yinchi, bitta telefonda.
 ///
 /// - Navbat bilan bo'sh yoki o'z rangingizdagi katakka shar qo'yasiz
 /// - Katakdagi sharlar soni uning qo'shnilari soniga yetsa (burchak 2, chet 3,

@@ -4,6 +4,7 @@ import '../games/battleship/battleship_screen.dart';
 import '../games/chain/chain_screen.dart';
 import '../games/checkers/checkers_screen.dart';
 import '../games/walls/walls_screen.dart';
+import '../games/orbs/orbs_screen.dart';
 import '../games/xo/xo_screen.dart';
 
 /// Bosh ekran: o'yinlar ro'yxati.
@@ -77,8 +78,8 @@ class HomeScreen extends StatelessWidget {
           Card(
             child: ListTile(
               leading: const Icon(Icons.bubble_chart),
-              title: const Text('Chain Reaction'),
-              subtitle: const Text('2–4 kishi, bitta telefonda'),
+              title: const Text('Chain Burst'),
+              subtitle: const Text('2–8 kishi, bitta telefonda'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
                 final s = await showChainSetup(context);
@@ -91,6 +92,16 @@ class HomeScreen extends StatelessWidget {
                   ),
                 );
               },
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.blur_circular),
+              title: const Text('Chain Burst: Sharlar'),
+              subtitle: const Text('Bir kishi: fizikali boshqotirma'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const OrbsScreen())),
             ),
           ),
           Card(

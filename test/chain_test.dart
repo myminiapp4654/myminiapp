@@ -134,4 +134,14 @@ void main() {
     expect(find.text("Ko'k navbati"), findsOneWidget);
     await t.pumpWidget(const SizedBox()); // titrash animatsiyasini to'xtatish
   });
+
+  test("8 o'yinchi: navbat hammasidan aylanib chiqadi", () {
+    final g = ChainGame(players: 8, rows: 12, cols: 8);
+    for (var p = 0; p < 8; p++) {
+      expect(g.current, p);
+      g.play(p * 12 + 5); // har biri alohida katakka
+    }
+    expect(g.current, 0);
+    expect(g.winner, isNull);
+  });
 }
