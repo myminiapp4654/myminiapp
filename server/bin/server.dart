@@ -86,11 +86,10 @@ Future<void> main() async {
         'cache-control': 'no-cache',
       });
     }
-    if (path.isEmpty ||
-        path == 'index.html' ||
-        path == 'flutter_bootstrap.js' ||
-        path == 'flutter_service_worker.js' ||
-        path == 'version.json') {
+    // Ilova kodi va resurslari har ochilganda tekshiriladi (o'zgarmagan bo'lsa —
+    // 304, qayta yuklanmaydi), aks holda Telegram eski versiyani ko'rsatib qoladi.
+    // CanvasKit katta va Flutter versiyasi bilan birga o'zgaradi — keshda qoladi.
+    if (res.statusCode == 200 && !path.startsWith('canvaskit/')) {
       return res.change(headers: {'cache-control': 'no-cache'});
     }
     return res;
