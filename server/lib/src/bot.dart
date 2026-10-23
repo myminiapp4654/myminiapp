@@ -5,7 +5,10 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart';
 
-/// Telegram bot: /start ga javob beradi va Mini App tugmasini ko'rsatadi.
+import 'uno/uno_bot.dart';
+
+/// Telegram bot: shaxsiy xabarda /start ga javob beradi va Mini App tugmasini
+/// ko'rsatadi, guruhlarda esa UNO o'yinini olib boradi.
 ///
 /// Webhook ishlatiladi: Telegram xabarni serverga yuboradi
 /// (Render'da uxlab qolgan server ham shu so'rov bilan uyg'onadi).
@@ -15,7 +18,12 @@ class TelegramBot {
   /// Ilovaning ochiq manzili (Render: RENDER_EXTERNAL_URL)
   final String publicUrl;
 
-  TelegramBot({required this.token, required this.publicUrl});
+  /// Guruhlardagi UNO (bot nomi ma'lum bo'lsa).
+  late final UnoBot? uno;
+
+  TelegramBot({required this.token, required this.publicUrl, String? botUsername}) {
+    uno = botUsername == null ? null : UnoBot(api: _call, botUsername: botUsername);
+  }
 
   /// Webhook manzilini taxmin qilib bo'lmasligi uchun tokendan yasalgan maxfiy qism.
   late final String secret =
@@ -47,7 +55,7 @@ class TelegramBot {
     await _call('setWebhook', {
       'url': '$publicUrl/$webhookPath',
       'secret_token': secret,
-      'allowed_updates': ['message'],
+      'allowed_updates': ['message', 'callback_query'],
       'drop_pending_updates': false,
     });
     await _call('setChatMenuButton', {
@@ -63,6 +71,16 @@ class TelegramBot {
         {'command': 'help', 'description': "Qanday o'ynaladi"},
       ],
     });
+    // Guruhlarda — UNO buyruqlari
+    await _call('setMyCommands', {
+      'scope': {'type': 'all_group_chats'},
+      'commands': [
+        {'command': 'start_uno', 'description': 'UNO o\'yinini ochish'},
+        {'command': 'start', 'description': 'Yig\'ilganlar bilan UNO\'ni boshlash'},
+        {'command': 'leave_uno', 'description': 'O\'yindan chiqish'},
+        {'command': 'stop_uno', 'description': 'O\'yinni to\'xtatish'},
+      ],
+    });
     stdout.writeln('Telegram bot sozlandi: $publicUrl');
   }
 
@@ -74,7 +92,17 @@ class TelegramBot {
     try {
       final update = jsonDecode(await req.readAsString()) as Map<String, dynamic>;
       final msg = update['message'] as Map<String, dynamic>?;
-      if (msg != null) await _onMessage(msg);
+      final callback = update['callback_query'] as Map<String, dynamic>?;
+      if (callback != null) {
+        await uno?.onCallback(callback);
+      } else if (msg != null) {
+        final type = (msg['chat'] as Map?)?['type'];
+        if (type == 'group' || type == 'supergroup') {
+          await uno?.onGroupMessage(msg);
+        } else {
+          await _onMessage(msg);
+        }
+      }
     } catch (e) {
       stderr.writeln('Webhook xato: $e');
     }
@@ -93,9 +121,19 @@ class TelegramBot {
       await _send(
         chatId,
         "🎮 <b>Qanday o'ynaladi</b>\n\n"
-        "1. «O'ynash» tugmasini bosing\n"
-        "2. Xona oching\n"
-        "3. Do'stingizni chaqiring",
+        "• «O'ynash» tugmasini bosing — o'yinni tanlang va kompyuterga qarshi o'ynang\n"
+        "• 🃏 <b>UNO</b> — botni guruhga qo'shing va /start_uno yozing. "
+        "Kartalaringiz shu yerga, shaxsiy xabarga keladi",
+      );
+      return;
+    }
+
+    // Guruhdagi UNO uchun bot bilan suhbat ochildi
+    if (text == '/start uno') {
+      await _send(
+        chatId,
+        "✅ Tayyor! Endi guruhga qayting va «✋ Qo'shilish» ni bosing.\n"
+        "UNO kartalaringiz shu yerga keladi 🃏",
       );
       return;
     }

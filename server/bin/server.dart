@@ -45,7 +45,7 @@ Future<void> main() async {
 
   // /start ga javob beradigan bot (ochiq manzil ma'lum bo'lsa)
   final bot = botToken.isNotEmpty && publicUrl.startsWith('https://')
-      ? TelegramBot(token: botToken, publicUrl: publicUrl)
+      ? TelegramBot(token: botToken, publicUrl: publicUrl, botUsername: botUsername)
       : null;
 
   final wsHandler = webSocketHandler((ws, _) => hub.handle(ws),
@@ -107,6 +107,7 @@ Future<void> main() async {
   Future<void> shutdown() async {
     stdout.writeln("To'xtatilmoqda...");
     store.dispose();
+    bot?.uno?.dispose();
     await hub.closeAll();
     await server.close(force: true);
     exit(0);

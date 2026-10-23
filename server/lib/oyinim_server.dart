@@ -7,3 +7,5 @@ export 'src/rooms.dart';
 export 'src/store.dart';
 export 'src/telegram_auth.dart';
 export 'src/xo.dart';
+export 'src/uno/uno_game.dart';
+export 'src/uno/uno_bot.dart';
