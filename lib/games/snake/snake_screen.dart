@@ -4,10 +4,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import '../../net/server_client.dart';
 import '../../ui/kit.dart';
 import 'snake_game.dart';
 
-Color _c(int paletteIndex) => Color(Snake.palette[paletteIndex % Snake.palette.length]);
+Color _c(int paletteIndex) =>
+    Color(Snake.palette[paletteIndex % Snake.palette.length]);
+
+/// Ism ranglari: o'zingiz — yashil, raqiblar — qizil.
+const _meName = Color(0xFF5CFF8A);
+const _foeName = Color(0xFFFF5A5A);
+
+/// Telegram'dagi ism (ulanmagan bo'lsa — "Siz").
+String _myName() {
+  final n = ServerClient.instance.user.value?.name.trim() ?? '';
+  return n.isEmpty ? 'Siz' : n;
+}
 
 /// Neon Snake: barmoq bilan boshqariladigan ilon, kompyuter ilonlariga qarshi.
 class SnakeScreen extends StatefulWidget {
@@ -23,8 +35,13 @@ class SnakeScreen extends StatefulWidget {
   State<SnakeScreen> createState() => _SnakeScreenState();
 }
 
-class _SnakeScreenState extends State<SnakeScreen> with SingleTickerProviderStateMixin {
-  late SnakeWorld _world = SnakeWorld(level: widget.level, seed: widget.seed);
+class _SnakeScreenState extends State<SnakeScreen>
+    with SingleTickerProviderStateMixin {
+  late SnakeWorld _world = SnakeWorld(
+    level: widget.level,
+    seed: widget.seed,
+    playerName: _myName(),
+  );
   late final Ticker _ticker = createTicker(_tick);
   Duration _last = Duration.zero;
 
@@ -55,7 +72,9 @@ class _SnakeScreenState extends State<SnakeScreen> with SingleTickerProviderStat
     final wasAlive = _world.player.alive;
     _world.update(dt);
     final p = _world.player;
-    if (p.alive && p.length > _lastLength && p.length % 10 == 0) HapticFeedback.selectionClick();
+    if (p.alive && p.length > _lastLength && p.length % 10 == 0) {
+      HapticFeedback.selectionClick();
+    }
     _lastLength = p.length;
     if (wasAlive && !p.alive) {
       HapticFeedback.heavyImpact();
@@ -66,7 +85,11 @@ class _SnakeScreenState extends State<SnakeScreen> with SingleTickerProviderStat
 
   void _restart() {
     setState(() {
-      _world = SnakeWorld(level: widget.level, seed: widget.seed == null ? null : widget.seed! + 1);
+      _world = SnakeWorld(
+        level: widget.level,
+        seed: widget.seed == null ? null : widget.seed! + 1,
+        playerName: _myName(),
+      );
       _stickOrigin = _stickNow = null;
     });
   }
@@ -118,7 +141,10 @@ class _SnakeScreenState extends State<SnakeScreen> with SingleTickerProviderStat
               onPointerCancel: (_) => _up(),
               child: ClipRect(
                 child: CustomPaint(
-                  painter: _WorldPainter(w, Theme.of(context).textTheme.bodyMedium!),
+                  painter: _WorldPainter(
+                    w,
+                    Theme.of(context).textTheme.bodyMedium!,
+                  ),
                   foregroundPainter: _StickPainter(_stickOrigin, _stickNow),
                 ),
               ),
@@ -130,28 +156,49 @@ class _SnakeScreenState extends State<SnakeScreen> with SingleTickerProviderStat
             top: 8,
             child: IgnorePointer(
               child: Glass(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Uzunlik: ${p.length}',
-                        key: const ValueKey('length'),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-                    Text("O'rin: ${p.alive ? w.playerRank : '—'} / ${w.leaderboard.length}",
-                        style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                    Text(
+                      'Uzunlik: ${p.length}',
+                      key: const ValueKey('length'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      "O'rin: ${p.alive ? w.playerRank : '—'} / ${w.leaderboard.length}",
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
           ),
           // Reyting
-          Positioned(right: 12, top: 8, child: IgnorePointer(child: _leaderboard())),
+          Positioned(
+            right: 12,
+            top: 8,
+            child: IgnorePointer(child: _leaderboard()),
+          ),
           // Kichik xarita
           Positioned(
             right: 12,
             bottom: 16,
             child: IgnorePointer(
-              child: SizedBox(width: 86, height: 86, child: CustomPaint(painter: _MiniMapPainter(w))),
+              child: SizedBox(
+                width: 86,
+                height: 86,
+                child: CustomPaint(painter: _MiniMapPainter(w)),
+              ),
             ),
           ),
           if (!_touched)
@@ -161,8 +208,11 @@ class _SnakeScreenState extends State<SnakeScreen> with SingleTickerProviderStat
               bottom: 40,
               child: IgnorePointer(
                 child: Center(
-                  child: GlowText("Barmoqni suring — ilon o'sha tomonga yuradi",
-                      size: 15, color: Color(0xFF00F5FF)),
+                  child: GlowText(
+                    "Barmoqni suring — ilon o'sha tomonga yuradi",
+                    size: 15,
+                    color: Color(0xFF00F5FF),
+                  ),
                 ),
               ),
             ),
@@ -170,7 +220,8 @@ class _SnakeScreenState extends State<SnakeScreen> with SingleTickerProviderStat
             Positioned.fill(
               child: WinOverlay(
                 title: "Ilon o'ldi",
-                subtitle: 'Uzunlik: ${p.length}  •  rekord: $_best  •  yutilgan: ${p.kills}',
+                subtitle:
+                    'Uzunlik: ${p.length}  •  rekord: $_best  •  yutilgan: ${p.kills}',
                 confetti: false,
                 color: const Color(0xFF00F5FF),
                 actions: [
@@ -195,35 +246,60 @@ class _SnakeScreenState extends State<SnakeScreen> with SingleTickerProviderStat
   }
 
   Widget _leaderboard() {
-    final top = _world.leaderboard.take(5).toList();
+    final all = _world.leaderboard;
+    final top = all.take(5).toList();
+    final me = _world.player;
+    final myRank = all.indexOf(me);
+
+    Widget row(int rank, Snake s) => Row(
+      children: [
+        Text(
+          '$rank. ',
+          style: const TextStyle(color: Colors.white54, fontSize: 11),
+        ),
+        Expanded(
+          child: Text(
+            s.name,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: s.isPlayer ? _meName : _foeName,
+              fontSize: 11,
+              fontWeight: s.isPlayer ? FontWeight.w900 : FontWeight.w600,
+            ),
+          ),
+        ),
+        Text(
+          '${s.length}',
+          style: const TextStyle(color: Colors.white70, fontSize: 11),
+        ),
+      ],
+    );
+
     return Glass(
       padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
       child: SizedBox(
-        width: 120,
+        width: 124,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('🏆 Reyting',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
-            const SizedBox(height: 4),
-            for (var k = 0; k < top.length; k++)
-              Row(
-                children: [
-                  Text('${k + 1}. ', style: const TextStyle(color: Colors.white54, fontSize: 11)),
-                  Expanded(
-                    child: Text(
-                      top[k].name,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _c(top[k].color),
-                        fontSize: 11,
-                        fontWeight: top[k].isPlayer ? FontWeight.w900 : FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Text('${top[k].length}', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                ],
+            const Text(
+              '🏆 Reyting',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
               ),
+            ),
+            const SizedBox(height: 4),
+            for (var k = 0; k < top.length; k++) row(k + 1, top[k]),
+            // O'zingiz top-5 da bo'lmasangiz — pastda alohida
+            if (myRank >= 5) ...[
+              const Text(
+                '…',
+                style: TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+              row(myRank + 1, me),
+            ],
           ],
         ),
       ),
@@ -241,17 +317,25 @@ class _WorldPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF05040B));
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF05040B),
+    );
     final p = w.player;
     // Kattalashgan sari kamera uzoqlashadi
-    final zoom = (size.shortestSide / 540) * (1.0 - min(0.3, (p.length - 14) * 0.0015));
+    final zoom =
+        (size.shortestSide / 540) * (1.0 - min(0.3, (p.length - 14) * 0.0015));
     final cam = p.head;
     canvas.save();
     canvas.translate(size.width / 2, size.height / 2);
     canvas.scale(zoom);
     canvas.translate(-cam.dx, -cam.dy);
 
-    final view = Rect.fromCenter(center: cam, width: size.width / zoom + 80, height: size.height / zoom + 80);
+    final view = Rect.fromCenter(
+      center: cam,
+      width: size.width / zoom + 80,
+      height: size.height / zoom + 80,
+    );
     _grid(canvas, view);
     _border(canvas);
 
@@ -262,15 +346,25 @@ class _WorldPainter extends CustomPainter {
       final pulse = 0.8 + 0.2 * sin(t * 4 + f.pos.dx * 0.05);
       final r = (f.fromDeath ? 6.0 : 3.8) * pulse;
       final color = _c(f.color);
-      canvas.drawCircle(f.pos, r * 2.4, Paint()..color = color.withValues(alpha: 0.18));
+      canvas.drawCircle(
+        f.pos,
+        r * 2.4,
+        Paint()..color = color.withValues(alpha: 0.18),
+      );
       canvas.drawCircle(f.pos, r, Paint()..color = color);
-      canvas.drawCircle(f.pos, r * 0.4, Paint()..color = Colors.white.withValues(alpha: 0.8));
+      canvas.drawCircle(
+        f.pos,
+        r * 0.4,
+        Paint()..color = Colors.white.withValues(alpha: 0.8),
+      );
     }
 
     // Ilonlar (o'yinchi eng ustida)
     for (final s in w.snakes.reversed) {
       if (!s.alive) continue;
-      if (!view.inflate(s.length * SnakeWorld.spacing).contains(s.head)) continue;
+      if (!view.inflate(s.length * SnakeWorld.spacing).contains(s.head)) {
+        continue;
+      }
       _snake(canvas, s, view);
     }
 
@@ -291,7 +385,11 @@ class _WorldPainter extends CustomPainter {
             ..strokeWidth = 4 * (1 - q)
             ..color = color.withValues(alpha: 1 - q),
         );
-        canvas.drawCircle(pt, 10 * (1 - q), Paint()..color = Colors.white.withValues(alpha: (1 - q) * 0.9));
+        canvas.drawCircle(
+          pt,
+          10 * (1 - q),
+          Paint()..color = Colors.white.withValues(alpha: (1 - q) * 0.9),
+        );
       }
     }
     canvas.restore();
@@ -314,8 +412,12 @@ class _WorldPainter extends CustomPainter {
     // Arena tashqarisi qorong'i, cheti qizil neon
     final outside = Path()
       ..fillType = PathFillType.evenOdd
-      ..addRect(Rect.fromCircle(center: Offset.zero, radius: SnakeWorld.radius * 2))
-      ..addOval(Rect.fromCircle(center: Offset.zero, radius: SnakeWorld.radius));
+      ..addRect(
+        Rect.fromCircle(center: Offset.zero, radius: SnakeWorld.radius * 2),
+      )
+      ..addOval(
+        Rect.fromCircle(center: Offset.zero, radius: SnakeWorld.radius),
+      );
     canvas.drawPath(outside, Paint()..color = const Color(0xFF1A0510));
     canvas.drawCircle(
       Offset.zero,
@@ -361,10 +463,14 @@ class _WorldPainter extends CustomPainter {
     for (var k = s.segs.length - 1; k >= 0; k--) {
       final q = s.segs[k];
       if (!view.contains(q)) continue;
-      final rr = r * (k > s.segs.length - 6 ? 0.6 + 0.08 * (s.segs.length - k) : 1.0);
+      final rr =
+          r * (k > s.segs.length - 6 ? 0.6 + 0.08 * (s.segs.length - k) : 1.0);
       canvas.drawCircle(q, rr, Paint()..color = (k ~/ 3).isEven ? color : dark);
-      canvas.drawCircle(q - Offset(rr * 0.3, rr * 0.3), rr * 0.35,
-          Paint()..color = Colors.white.withValues(alpha: 0.25));
+      canvas.drawCircle(
+        q - Offset(rr * 0.3, rr * 0.3),
+        rr * 0.35,
+        Paint()..color = Colors.white.withValues(alpha: 0.25),
+      );
     }
 
     // Bosh va ko'zlar
@@ -375,20 +481,29 @@ class _WorldPainter extends CustomPainter {
     for (final k in const [-1.0, 1.0]) {
       final e = h + dir * r * 0.35 + side * r * 0.5 * k;
       canvas.drawCircle(e, r * 0.38, Paint()..color = Colors.white);
-      canvas.drawCircle(e + dir * r * 0.14, r * 0.2, Paint()..color = Colors.black);
+      canvas.drawCircle(
+        e + dir * r * 0.14,
+        r * 0.2,
+        Paint()..color = Colors.black,
+      );
     }
 
-    // Kompyuter ismi
-    if (!s.isPlayer) {
-      final tp = TextPainter(
-        text: TextSpan(
-          text: s.name,
-          style: text.copyWith(color: color.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w700),
+    // Ism bosh ustida
+    final tp = TextPainter(
+      text: TextSpan(
+        text: s.name,
+        style: text.copyWith(
+          color: s.isPlayer ? _meName : _foeName,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
         ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, h + Offset(-tp.width / 2, -r - 20));
-    }
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '…',
+    )..layout(maxWidth: 140);
+    tp.paint(canvas, h + Offset(-tp.width / 2, -r - 22));
   }
 
   @override
@@ -412,8 +527,16 @@ class _StickPainter extends CustomPainter {
         ..strokeWidth = 2
         ..color = Colors.white.withValues(alpha: 0.25),
     );
-    canvas.drawCircle(o, 60, Paint()..color = Colors.white.withValues(alpha: 0.05));
-    canvas.drawCircle(n, 24, Paint()..color = const Color(0xFF00F5FF).withValues(alpha: 0.35));
+    canvas.drawCircle(
+      o,
+      60,
+      Paint()..color = Colors.white.withValues(alpha: 0.05),
+    );
+    canvas.drawCircle(
+      n,
+      24,
+      Paint()..color = const Color(0xFF00F5FF).withValues(alpha: 0.35),
+    );
     canvas.drawCircle(
       n,
       24,
@@ -425,7 +548,8 @@ class _StickPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _StickPainter old) => old.origin != origin || old.now != now;
+  bool shouldRepaint(covariant _StickPainter old) =>
+      old.origin != origin || old.now != now;
 }
 
 class _MiniMapPainter extends CustomPainter {
@@ -436,7 +560,11 @@ class _MiniMapPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
     final r = size.width / 2;
-    canvas.drawCircle(c, r, Paint()..color = Colors.black.withValues(alpha: 0.55));
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()..color = Colors.black.withValues(alpha: 0.55),
+    );
     canvas.drawCircle(
       c,
       r,
@@ -452,7 +580,10 @@ class _MiniMapPainter extends CustomPainter {
       canvas.drawCircle(
         c + s.head * k,
         s.isPlayer ? dot + 1.5 : dot,
-        Paint()..color = s.isPlayer ? Colors.white : _c(s.color).withValues(alpha: 0.8),
+        Paint()
+          ..color = s.isPlayer
+              ? Colors.white
+              : _c(s.color).withValues(alpha: 0.8),
       );
     }
   }

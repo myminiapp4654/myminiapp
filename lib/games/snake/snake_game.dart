@@ -16,7 +16,7 @@ class SnakeWorld {
   static const radius = 1400.0;
   static const spacing = 8.0; // bo'g'imlar orasidagi masofa
   static const speed = 165.0; // birlik/soniya
-  static const turnRate = 3.8; // radian/soniya
+  static const turnRate = 7.5; // radian/soniya (tez, sezgir burilish)
   static const foodTarget = 420;
   static const startLength = 14;
 
@@ -35,12 +35,33 @@ class SnakeWorld {
   final _respawnAt = <double>[];
 
   static const botNames = [
-    'Kobra', 'Piton', 'Chaqmoq', 'Shamol', 'Anakonda', 'Turbo',
-    'Raketa', 'Yashin', 'Bo\'ron', 'Neon', 'Kamalak', 'Zilzila',
+    'Kobra',
+    'Piton',
+    'Chaqmoq',
+    'Shamol',
+    'Anakonda',
+    'Turbo',
+    'Raketa',
+    'Yashin',
+    'Bo\'ron',
+    'Neon',
+    'Kamalak',
+    'Zilzila',
   ];
 
-  SnakeWorld({this.level = 2, int? seed}) : r = Random(seed) {
-    snakes.add(Snake(_nextId++, 'Siz', 0, isPlayer: true, start: const Offset(0, 0), angle: -pi / 2));
+  /// [playerName] — o'yinchining Telegram'dagi ismi.
+  SnakeWorld({this.level = 2, int? seed, String playerName = 'Siz'})
+    : r = Random(seed) {
+    snakes.add(
+      Snake(
+        _nextId++,
+        playerName,
+        0,
+        isPlayer: true,
+        start: const Offset(0, 0),
+        angle: -pi / 2,
+      ),
+    );
     for (var k = 0; k < botCount; k++) {
       _spawnBot();
     }
@@ -49,7 +70,11 @@ class SnakeWorld {
     }
   }
 
-  int get botCount => switch (level) { 1 => 6, 2 => 8, _ => 10 };
+  int get botCount => switch (level) {
+    1 => 6,
+    2 => 8,
+    _ => 10,
+  };
 
   Snake get player => snakes.first;
 
@@ -77,11 +102,14 @@ class SnakeWorld {
       final p = _randomPoint(250);
       final a = r.nextDouble() * 2 * pi;
       final body = [
-        for (var i = 0; i < length; i += 3) p - Offset(cos(a), sin(a)) * (i * spacing),
+        for (var i = 0; i < length; i += 3)
+          p - Offset(cos(a), sin(a)) * (i * spacing),
       ];
       final safe = snakes.every((o) {
         if (!o.alive) return true;
-        if (o.isPlayer && body.any((q) => (q - o.head).distance < 400)) return false;
+        if (o.isPlayer && body.any((q) => (q - o.head).distance < 400)) {
+          return false;
+        }
         for (final q in body) {
           for (var i = 0; i < o.segs.length; i += 2) {
             if ((o.segs[i] - q).distance < 150) return false;
@@ -95,14 +123,16 @@ class SnakeWorld {
         break;
       }
     }
-    snakes.add(Snake(
-      _nextId++,
-      botNames[(_nextId - 1) % botNames.length],
-      1 + r.nextInt(Snake.palette.length - 1),
-      start: pos,
-      angle: angle,
-      length: length,
-    ));
+    snakes.add(
+      Snake(
+        _nextId++,
+        botNames[(_nextId - 1) % botNames.length],
+        1 + r.nextInt(Snake.palette.length - 1),
+        start: pos,
+        angle: angle,
+        length: length,
+      ),
+    );
   }
 
   // ---------------------------------------------------------------- kadr
@@ -153,7 +183,9 @@ class SnakeWorld {
       food.removeWhere((f) {
         if (f.born > time) return false; // portlash hali yetib kelmagan
         final d = f.pos - s.head;
-        if (d.dx.abs() > reach || d.dy.abs() > reach || d.distance > reach) return false;
+        if (d.dx.abs() > reach || d.dy.abs() > reach || d.distance > reach) {
+          return false;
+        }
         s.feed(f.value);
         return true;
       });
@@ -207,10 +239,16 @@ class SnakeWorld {
     if (p.distance > radius - margin) return true;
     for (final o in snakes) {
       if (o == self || !o.alive) continue;
-      if ((o.head - p).distance > o.segs.length * spacing + margin + 40) continue;
+      if ((o.head - p).distance > o.segs.length * spacing + margin + 40) {
+        continue;
+      }
       final hit = self.radius + o.radius + margin * 0.5;
       for (final q in o.segs) {
-        if ((q - p).dx.abs() < hit && (q - p).dy.abs() < hit && (q - p).distance < hit) return true;
+        if ((q - p).dx.abs() < hit &&
+            (q - p).dy.abs() < hit &&
+            (q - p).distance < hit) {
+          return true;
+        }
       }
     }
     return false;
@@ -218,7 +256,9 @@ class SnakeWorld {
 
   bool _dangerAlong(Snake s, double angle, double reach) {
     for (final d in [reach * 0.35, reach * 0.7, reach]) {
-      if (_danger(s, s.head + Offset(cos(angle), sin(angle)) * d, 18)) return true;
+      if (_danger(s, s.head + Offset(cos(angle), sin(angle)) * d, 18)) {
+        return true;
+      }
     }
     return false;
   }
@@ -226,8 +266,18 @@ class SnakeWorld {
   void _think(Snake s, double dt) {
     s.thinkIn -= dt;
     if (s.thinkIn > 0) return;
-    s.thinkIn = switch (level) { 1 => 0.32, 2 => 0.18, _ => 0.1 } * (0.8 + r.nextDouble() * 0.4);
-    final reach = switch (level) { 1 => 70.0, 2 => 110.0, _ => 150.0 };
+    s.thinkIn =
+        switch (level) {
+          1 => 0.32,
+          2 => 0.18,
+          _ => 0.1,
+        } *
+        (0.8 + r.nextDouble() * 0.4);
+    final reach = switch (level) {
+      1 => 70.0,
+      2 => 110.0,
+      _ => 150.0,
+    };
 
     // 1. Xavfdan qochish (oson kompyuter ba'zan e'tibor bermaydi)
     final careless = level == 1 && r.nextDouble() < 0.25;
@@ -245,7 +295,10 @@ class SnakeWorld {
 
     // 2. Qiyin kompyuter o'yinchining yo'lini to'sishga urinadi
     final p = player;
-    if (level >= 3 && time > 6 && p.alive && s.segs.length > p.segs.length * 0.7) {
+    if (level >= 3 &&
+        time > 6 &&
+        p.alive &&
+        s.segs.length > p.segs.length * 0.7) {
       final d = (p.head - s.head).distance;
       if (d < 320 && r.nextDouble() < 0.6) {
         final ahead = p.head + Offset(cos(p.angle), sin(p.angle)) * 110;
@@ -281,7 +334,8 @@ class SnakeWorld {
 
   /// Tirik ilonlar uzunligi bo'yicha.
   List<Snake> get leaderboard =>
-      snakes.where((s) => s.alive).toList()..sort((a, b) => b.length.compareTo(a.length));
+      snakes.where((s) => s.alive).toList()
+        ..sort((a, b) => b.length.compareTo(a.length));
 
   /// O'yinchining o'rni (1 dan).
   int get playerRank => leaderboard.indexOf(player) + 1;
@@ -314,12 +368,19 @@ class Snake {
   int kills = 0;
   double thinkIn = 0;
 
-  Snake(this.id, this.name, this.color,
-      {this.isPlayer = false, required Offset start, required this.angle, int length = SnakeWorld.startLength})
-      : targetAngle = angle,
-        segs = [
-          for (var k = 0; k < length; k++) start - Offset(cos(angle), sin(angle)) * (k * SnakeWorld.spacing),
-        ];
+  Snake(
+    this.id,
+    this.name,
+    this.color, {
+    this.isPlayer = false,
+    required Offset start,
+    required this.angle,
+    int length = SnakeWorld.startLength,
+  }) : targetAngle = angle,
+       segs = [
+         for (var k = 0; k < length; k++)
+           start - Offset(cos(angle), sin(angle)) * (k * SnakeWorld.spacing),
+       ];
 
   Offset get head => segs.first;
   int get length => segs.length;
@@ -333,7 +394,9 @@ class Snake {
     // Yo'nalishni silliq burish (eng qisqa tomonga)
     var diff = (targetAngle - angle) % (2 * pi);
     if (diff > pi) diff -= 2 * pi;
-    final maxTurn = SnakeWorld.turnRate * dt * (1.0 - min(0.4, segs.length / 900));
+    // Juda uzun ilon biroz sekinroq buriladi
+    final maxTurn =
+        SnakeWorld.turnRate * dt * (1.0 - min(0.25, segs.length / 1600));
     angle += diff.clamp(-maxTurn, maxTurn);
 
     final step = Offset(cos(angle), sin(angle)) * (SnakeWorld.speed * dt);
