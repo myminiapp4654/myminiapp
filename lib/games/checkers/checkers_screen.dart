@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../telegram/telegram.dart';
 import '../../ui/crown.dart';
 import '../../ui/kit.dart';
+import '../../net/online_match.dart';
 import 'checkers_ai.dart';
 import 'checkers_game.dart';
 
@@ -21,7 +22,10 @@ class CheckersScreen extends StatefulWidget {
   /// Testlar uchun
   final int? seed;
 
-  const CheckersScreen({super.key, this.level = 2, this.seed});
+  /// Onlayn o'yin (do'st bilan). Bo'lsa — raqib yurishlari serverdan keladi.
+  final OnlineMatch? online;
+
+  const CheckersScreen({super.key, this.level = 2, this.seed, this.online});
 
   @override
   State<CheckersScreen> createState() => _CheckersScreenState();
@@ -33,21 +37,82 @@ class _CheckersScreenState extends State<CheckersScreen>
   late final Random _rnd = Random(widget.seed);
   int? _selected;
   int _moveCount = 0;
-  static const _me = 'w', _ai = 'b';
+  OnlineMatch? get _online => widget.online;
+
+  /// Mening rangim: onlayn o'yinda birinchi yuruvchi — oq, aks holda doim oq.
+  String get _me => _online == null ? 'w' : (_online!.iAmFirst ? 'w' : 'b');
+  String get _ai => _me == 'w' ? 'b' : 'w';
+
+  /// Qora o'ynaganda taxta ag'dariladi — o'z donalaringiz doim pastda.
+  bool get _flip => _me == 'b';
+
+  // ---- onlayn
+  int _applied = 0;
+  bool _endSent = false;
+  final _myTurnSteps = <String>[];
+
+  void _syncOnline() {
+    final o = _online;
+    if (o == null || _aiTimer != null) return;
+    final moves = o.moves.value;
+    if (_applied >= moves.length) return;
+    final turn = moves[_applied++];
+    // Raqib yurishi: "from-to,from-to" — qadamlarni birin-ketin ko'rsatamiz
+    final steps = [
+      for (final part in turn.split(','))
+        CheckersMove(
+          int.parse(part.split('-')[0]),
+          int.parse(part.split('-')[1]),
+        ),
+    ];
+    _aiTimer = Timer(
+      const Duration(milliseconds: 150),
+      () => _playSteps(steps, 0),
+    );
+  }
+
+  void _checkEnd() {
+    if (_online != null && !_endSent && _game.finished) {
+      _endSent = true;
+      _online!.end();
+    }
+  }
+
+  void _onLeft() => setState(() {});
+
+  @override
+  void initState() {
+    super.initState();
+    _online?.moves.addListener(_syncOnline);
+    _online?.left.addListener(_onLeft);
+    if (_online != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncOnline());
+    }
+  }
 
   /// Kompyuter yurishi davom etyapti (qadamlar birin-ketin ko'rsatiladi).
   Timer? _aiTimer;
 
   bool get _myTurn => !_game.finished && _game.turn == _me && _aiTimer == null;
 
-  late final AnimationController _pulse =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
-        ..repeat(reverse: true);
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
 
-  static String _who(String c) => c == _me ? 'Siz' : 'Kompyuter';
+  String _who(String c) {
+    final o = _online;
+    if (o == null) return c == _me ? 'Siz' : 'Kompyuter';
+    return c == _me ? 'Siz' : o.nameOf(o.opponent);
+  }
+
+  String get _foe =>
+      _online == null ? 'Kompyuter' : _online!.nameOf(_online!.opponent);
 
   @override
   void dispose() {
+    _online?.moves.removeListener(_syncOnline);
+    _online?.left.removeListener(_onLeft);
     _aiTimer?.cancel();
     _pulse.dispose();
     super.dispose();
@@ -55,6 +120,7 @@ class _CheckersScreenState extends State<CheckersScreen>
 
   /// Kompyuter navbati bo'lsa — o'ylab, qadamlarni birin-ketin yuradi.
   void _maybeAi() {
+    if (_online != null) return;
     if (_game.finished || _game.turn != _ai || _aiTimer != null) return;
     _aiTimer = Timer(const Duration(milliseconds: 450), () {
       if (!mounted) return;
@@ -67,6 +133,8 @@ class _CheckersScreenState extends State<CheckersScreen>
     if (!mounted) return;
     if (k >= steps.length) {
       setState(() => _aiTimer = null);
+      _checkEnd();
+      _syncOnline(); // navbatda yana yurish bo'lsa
       return;
     }
     final m = steps[k];
@@ -74,22 +142,40 @@ class _CheckersScreenState extends State<CheckersScreen>
       _game.play(m.from, m.to);
       _moveCount++;
     });
-    m.isCapture ? HapticFeedback.mediumImpact() : HapticFeedback.selectionClick();
-    _aiTimer = Timer(const Duration(milliseconds: 380), () => _playSteps(steps, k + 1));
+    m.isCapture
+        ? HapticFeedback.mediumImpact()
+        : HapticFeedback.selectionClick();
+    _aiTimer = Timer(
+      const Duration(milliseconds: 380),
+      () => _playSteps(steps, k + 1),
+    );
   }
 
   void _tap(int i, List<CheckersMove> moves) {
     if (!_myTurn) return;
     final from = _game.chain ?? _selected;
     if (from != null && moves.any((m) => m.from == from && m.to == i)) {
-      final capture = moves.any((m) => m.from == from && m.to == i && m.isCapture);
+      final capture = moves.any(
+        (m) => m.from == from && m.to == i && m.isCapture,
+      );
       Telegram.haptic();
       capture ? HapticFeedback.mediumImpact() : HapticFeedback.selectionClick();
+      final turnBefore = _game.turn;
       setState(() {
         _game.play(from, i);
         _selected = null;
         _moveCount++;
       });
+      if (_online != null) {
+        _myTurnSteps.add('$from-$i');
+        // Navbat almashdi (yoki o'yin tugadi) — butun yurishni yuboramiz
+        if (_game.turn != turnBefore || _game.finished) {
+          _online!.send(_myTurnSteps.join(','));
+          _myTurnSteps.clear();
+          _applied++;
+          _checkEnd();
+        }
+      }
       _maybeAi();
       return;
     }
@@ -112,8 +198,10 @@ class _CheckersScreenState extends State<CheckersScreen>
   String _status() {
     final g = _game;
     if (g.winner == 'draw') return 'Durang';
-    if (g.finished) return g.winner == _me ? 'Siz yutdingiz!' : 'Kompyuter yutdi';
-    if (g.turn == _ai) return "Kompyuter o'ylayapti…";
+    if (g.finished) return g.winner == _me ? 'Siz yutdingiz!' : '$_foe yutdi';
+    if (g.turn == _ai) {
+      return _online == null ? "Kompyuter o'ylayapti…" : "$_foe o'ylayapti…";
+    }
     if (g.chain != null) return 'Urishni davom ettiring';
     if (g.mustCapture) return 'Sizning navbatingiz — urish majburiy';
     return 'Sizning navbatingiz';
@@ -145,75 +233,108 @@ class _CheckersScreenState extends State<CheckersScreen>
       palette: GamePalette.checkers,
       body: Stack(
         children: [
-          LayoutBuilder(builder: (context, box) {
-            final board = (box.maxWidth - 16).clamp(0.0, box.maxHeight - 230);
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    children: [
-                      Expanded(child: Align(alignment: Alignment.centerLeft, child: _badge('b'))),
-                      const SizedBox(width: 10),
-                      Expanded(child: Align(alignment: Alignment.centerRight, child: _badge('w'))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(width: board, height: board, child: _buildBoard()),
-                const SizedBox(height: 12),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: Container(
-                    key: ValueKey(status),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      color: urgent
-                          ? const Color(0xFFFF8A3D).withValues(alpha: 0.35)
-                          : Colors.black.withValues(alpha: 0.3),
+          LayoutBuilder(
+            builder: (context, box) {
+              final board = (box.maxWidth - 16).clamp(0.0, box.maxHeight - 230);
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _badge(_ai),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: _badge(_me),
+                          ),
+                        ),
+                      ],
                     ),
-                    child: Text(status,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                   ),
-                ),
-                Text("Hisob ${g.score['w']} : ${g.score['b']}  •  ${g.round}-raund  •  durang: ${g.draws}",
-                    style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GameButton(
-                          label: 'Qaytadan',
-                          icon: Icons.refresh_rounded,
-                          outlined: true,
-                          colors: const [Color(0xFFFFB347), Color(0xFFFF6A3D)],
-                          onPressed: _newRound,
+                  const SizedBox(height: 12),
+                  SizedBox(width: board, height: board, child: _buildBoard()),
+                  const SizedBox(height: 12),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Container(
+                      key: ValueKey(status),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        color: urgent
+                            ? const Color(0xFFFF8A3D).withValues(alpha: 0.35)
+                            : Colors.black.withValues(alpha: 0.3),
+                      ),
+                      child: Text(
+                        status,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            );
-          }),
-          if (g.finished)
+                  Text(
+                    "Hisob ${g.score['w']} : ${g.score['b']}  •  ${g.round}-raund  •  durang: ${g.draws}",
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_online == null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GameButton(
+                              label: 'Qaytadan',
+                              icon: Icons.refresh_rounded,
+                              outlined: true,
+                              colors: const [
+                                Color(0xFFFFB347),
+                                Color(0xFFFF6A3D),
+                              ],
+                              onPressed: _newRound,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          if (g.finished || _online?.left.value != null)
             Positioned.fill(
               child: WinOverlay(
-                title: g.winner == 'draw'
+                title: !g.finished
+                    ? 'Raqib chiqib ketdi'
+                    : g.winner == 'draw'
                     ? 'Durang'
                     : g.winner == _me
-                        ? 'Siz yutdingiz!'
-                        : 'Kompyuter yutdi',
-                subtitle: "Hisob: Siz ${g.score['w']} : ${g.score['b']} Kompyuter",
-                confetti: g.winner == _me,
+                    ? 'Siz yutdingiz!'
+                    : '$_foe yutdi',
+                subtitle: !g.finished
+                    ? 'Siz yutdingiz'
+                    : "Hisob: Siz ${g.score[_me]} : ${g.score[_ai]} $_foe",
+                confetti: !g.finished || g.winner == _me,
                 color: const Color(0xFFFFB347),
                 actions: [
                   GameButton(
-                      label: "Yana o'ynash", icon: Icons.replay_rounded, onPressed: _newRound),
+                    label: "Yana o'ynash",
+                    icon: Icons.replay_rounded,
+                    onPressed: _online != null ? _online!.again : _newRound,
+                  ),
                   GameButton(
                     label: 'Bosh menyu',
                     outlined: true,
@@ -247,107 +368,153 @@ class _CheckersScreenState extends State<CheckersScreen>
           end: Alignment.bottomRight,
           colors: [Color(0xFF7A4A24), Color(0xFF3B2010), Color(0xFF6A3E1C)],
         ),
-        boxShadow: const [BoxShadow(color: Colors.black87, blurRadius: 24, offset: Offset(0, 12))],
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black87,
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4),
-        child: LayoutBuilder(builder: (context, box) {
-          final s = box.maxWidth / 8;
-          Offset pos(int i) => Offset((i % 8) * s, (i ~/ 8) * s);
-
-          final squares = <Widget>[];
-          final pieces = <Widget>[];
-          for (var i = 0; i < 64; i++) {
-            final dark = (i ~/ 8 + i % 8).isOdd;
-            var bg = dark ? const Color(0xFF8B5A2B) : const Color(0xFFF0DDB8);
-            if (dark && (i == g.lastFrom || i == g.lastTo)) {
-              bg = Color.lerp(bg, const Color(0xFFFFC857), 0.35)!;
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final s = box.maxWidth / 8;
+            Offset pos(int i) {
+              final k = _flip ? 63 - i : i;
+              return Offset((k % 8) * s, (k ~/ 8) * s);
             }
-            if (i == selected) bg = Color.lerp(bg, const Color(0xFF7FC97F), 0.6)!;
-            final p = pos(i);
-            final isTarget = targets.containsKey(i);
-            squares.add(Positioned(
-              left: p.dx,
-              top: p.dy,
-              width: s,
-              height: s,
-              child: GestureDetector(
-                key: ValueKey('sq-$i'),
-                onTap: dark && !g.finished ? () => _tap(i, moves) : null,
-                child: Container(
-                  color: bg,
-                  child: isTarget
-                      ? Center(
-                          child: AnimatedBuilder(
-                            animation: _pulse,
-                            builder: (_, _) => Container(
-                              width: s * (targets[i]! ? 0.8 : 0.32),
-                              height: s * (targets[i]! ? 0.8 : 0.32),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: targets[i]!
-                                    ? null
-                                    : const Color(0xFF7CFF8A).withValues(alpha: 0.5 + 0.3 * _pulse.value),
-                                border: targets[i]!
-                                    ? Border.all(
-                                        color: const Color(0xFFFF5252).withValues(alpha: 0.6 + 0.4 * _pulse.value),
-                                        width: 3)
-                                    : null,
-                              ),
-                            ),
-                          ),
-                        )
-                      : null,
-                ),
-              ),
-            ));
 
-            final piece = g.board[i];
-            if (piece.isEmpty) continue;
-            final canMove = !g.finished && g.chain == null && movable.contains(i) && i != selected;
-            final disc = IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _pulse,
-                builder: (_, child) => Container(
-                  margin: EdgeInsets.all(s * 0.08),
-                  decoration: canMove
-                      ? BoxDecoration(shape: BoxShape.circle, boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFFFC857).withValues(alpha: 0.4 + 0.4 * _pulse.value),
-                            blurRadius: 8 + 6 * _pulse.value,
-                            spreadRadius: 1,
-                          ),
-                        ])
-                      : null,
-                  child: child,
-                ),
-                child: AnimatedScale(
-                  scale: i == selected ? 1.12 : 1,
-                  duration: const Duration(milliseconds: 120),
-                  child: Opacity(
-                    opacity: g.captured.contains(i) ? 0.35 : 1,
-                    child: CustomPaint(painter: _DiscPainter(piece)),
+            final squares = <Widget>[];
+            final pieces = <Widget>[];
+            for (var i = 0; i < 64; i++) {
+              final dark = (i ~/ 8 + i % 8).isOdd;
+              var bg = dark ? const Color(0xFF8B5A2B) : const Color(0xFFF0DDB8);
+              if (dark && (i == g.lastFrom || i == g.lastTo)) {
+                bg = Color.lerp(bg, const Color(0xFFFFC857), 0.35)!;
+              }
+              if (i == selected) {
+                bg = Color.lerp(bg, const Color(0xFF7FC97F), 0.6)!;
+              }
+              final p = pos(i);
+              final isTarget = targets.containsKey(i);
+              squares.add(
+                Positioned(
+                  left: p.dx,
+                  top: p.dy,
+                  width: s,
+                  height: s,
+                  child: GestureDetector(
+                    key: ValueKey('sq-$i'),
+                    onTap: dark && !g.finished ? () => _tap(i, moves) : null,
+                    child: Container(
+                      color: bg,
+                      child: isTarget
+                          ? Center(
+                              child: AnimatedBuilder(
+                                animation: _pulse,
+                                builder: (_, _) => Container(
+                                  width: s * (targets[i]! ? 0.8 : 0.32),
+                                  height: s * (targets[i]! ? 0.8 : 0.32),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: targets[i]!
+                                        ? null
+                                        : const Color(0xFF7CFF8A).withValues(
+                                            alpha: 0.5 + 0.3 * _pulse.value,
+                                          ),
+                                    border: targets[i]!
+                                        ? Border.all(
+                                            color: const Color(0xFFFF5252)
+                                                .withValues(
+                                                  alpha:
+                                                      0.6 + 0.4 * _pulse.value,
+                                                ),
+                                            width: 3,
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
                   ),
                 ),
-              ),
-            );
-            final to = pos(i);
-            if (i == g.lastTo && g.lastFrom != null) {
-              pieces.add(TweenAnimationBuilder<Offset>(
-                key: ValueKey('mv-$_moveCount'),
-                tween: Tween(begin: pos(g.lastFrom!), end: to),
-                duration: const Duration(milliseconds: 230),
-                curve: Curves.easeOutCubic,
-                builder: (_, o, child) =>
-                    Positioned(left: o.dx, top: o.dy, width: s, height: s, child: child!),
-                child: disc,
-              ));
-            } else {
-              pieces.add(Positioned(left: to.dx, top: to.dy, width: s, height: s, child: disc));
+              );
+
+              final piece = g.board[i];
+              if (piece.isEmpty) continue;
+              final canMove =
+                  !g.finished &&
+                  g.chain == null &&
+                  movable.contains(i) &&
+                  i != selected;
+              final disc = IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (_, child) => Container(
+                    margin: EdgeInsets.all(s * 0.08),
+                    decoration: canMove
+                        ? BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFFFFC857,
+                                ).withValues(alpha: 0.4 + 0.4 * _pulse.value),
+                                blurRadius: 8 + 6 * _pulse.value,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          )
+                        : null,
+                    child: child,
+                  ),
+                  child: AnimatedScale(
+                    scale: i == selected ? 1.12 : 1,
+                    duration: const Duration(milliseconds: 120),
+                    child: Opacity(
+                      opacity: g.captured.contains(i) ? 0.35 : 1,
+                      child: CustomPaint(painter: _DiscPainter(piece)),
+                    ),
+                  ),
+                ),
+              );
+              final to = pos(i);
+              if (i == g.lastTo && g.lastFrom != null) {
+                pieces.add(
+                  TweenAnimationBuilder<Offset>(
+                    key: ValueKey('mv-$_moveCount'),
+                    tween: Tween(begin: pos(g.lastFrom!), end: to),
+                    duration: const Duration(milliseconds: 230),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, o, child) => Positioned(
+                      left: o.dx,
+                      top: o.dy,
+                      width: s,
+                      height: s,
+                      child: child!,
+                    ),
+                    child: disc,
+                  ),
+                );
+              } else {
+                pieces.add(
+                  Positioned(
+                    left: to.dx,
+                    top: to.dy,
+                    width: s,
+                    height: s,
+                    child: disc,
+                  ),
+                );
+              }
             }
-          }
-          return Stack(children: [...squares, ...pieces]);
-        }),
+            return Stack(children: [...squares, ...pieces]);
+          },
+        ),
       ),
     );
   }
@@ -367,10 +534,16 @@ class _DiscPainter extends CustomPainter {
     final base = white ? _ivory : _ebony;
 
     // Soya va qalinlik (pastki qatlam)
-    canvas.drawCircle(c + Offset(0, r * 0.14), r * 0.98,
-        Paint()..color = Colors.black.withValues(alpha: 0.45));
-    canvas.drawCircle(c + Offset(0, r * 0.07), r * 0.98,
-        Paint()..color = Color.lerp(base, Colors.black, white ? 0.35 : 0.5)!);
+    canvas.drawCircle(
+      c + Offset(0, r * 0.14),
+      r * 0.98,
+      Paint()..color = Colors.black.withValues(alpha: 0.45),
+    );
+    canvas.drawCircle(
+      c + Offset(0, r * 0.07),
+      r * 0.98,
+      Paint()..color = Color.lerp(base, Colors.black, white ? 0.35 : 0.5)!,
+    );
     // Yuz
     canvas.drawCircle(
       c,
@@ -394,7 +567,10 @@ class _DiscPainter extends CustomPainter {
     canvas.drawCircle(c, r * 0.72, ring);
     canvas.drawCircle(c, r * 0.48, ring);
     if (king) {
-      paintCrown(canvas, Rect.fromCenter(center: c, width: r * 1.15, height: r * 0.95));
+      paintCrown(
+        canvas,
+        Rect.fromCenter(center: c, width: r * 1.15, height: r * 0.95),
+      );
     }
   }
 

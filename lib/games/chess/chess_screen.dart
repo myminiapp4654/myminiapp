@@ -8,6 +8,7 @@ import '../../ui/kit.dart';
 import '../../ui/setup.dart';
 import 'chess_game.dart';
 import 'chess_pieces.dart';
+import '../../net/online_match.dart';
 
 /// Sozlamalar: rangingiz va kompyuter darajasi.
 Future<({String humanColor, int level})?> showChessSetup(BuildContext context) {
@@ -56,12 +57,16 @@ class ChessScreen extends StatefulWidget {
   /// Tayyor pozitsiya (test va ekran rasmlari uchun).
   final ChessGame? initialGame;
 
+  /// Onlayn o'yin (do'st bilan). Bo'lsa — raqib yurishlari serverdan keladi.
+  final OnlineMatch? online;
+
   const ChessScreen({
     super.key,
     this.vsAi = false,
     this.humanColor = 'w',
     this.level = 2,
     this.initialGame,
+    this.online,
   });
 
   @override
@@ -72,15 +77,77 @@ class _ChessScreenState extends State<ChessScreen> {
   late ChessGame _game = widget.initialGame ?? ChessGame();
   int? _selected;
   bool _thinking = false;
-  late bool _flipped = widget.vsAi && widget.humanColor == 'b';
+  late bool _flipped = widget.online != null ? _myColor == 'b' : widget.vsAi && widget.humanColor == 'b';
 
   bool get _aiTurn => widget.vsAi && _game.turn != widget.humanColor;
+
+  // ---- onlayn
+  OnlineMatch? get _online => widget.online;
+
+  /// Onlayn o'yinda mening rangim: birinchi yuruvchi — oq.
+  String get _myColor => _online == null ? 'w' : (_online!.iAmFirst ? 'w' : 'b');
+
+  /// Serverdagi yurishlardan nechtasi taxtada.
+  int _applied = 0;
+  bool _endSent = false;
+
+  bool get _waitingOpponent => _online != null && _game.turn != _myColor;
+
+  void _syncOnline() {
+    final o = _online;
+    if (o == null) return;
+    final moves = o.moves.value;
+    var changed = false;
+    while (_applied < moves.length) {
+      final m = moves[_applied];
+      final move = _game.legalMoves().where((x) => x.toString() == m).firstOrNull;
+      if (move == null) break; // tushunarsiz yurish — kutamiz
+      _game.play(move);
+      _applied++;
+      changed = true;
+    }
+    if (changed) {
+      HapticFeedback.selectionClick();
+      setState(() => _selected = null);
+    }
+    _checkEnd();
+  }
+
+  void _checkEnd() {
+    if (_online != null && !_endSent && _game.result != ChessResult.playing) {
+      _endSent = true;
+      _online!.end();
+    }
+  }
+
+  void _onLeft() => setState(() {});
+
+  @override
+  void didUpdateWidget(covariant ChessScreen old) {
+    super.didUpdateWidget(old);
+    if (old.online != widget.online) {
+      old.online?.moves.removeListener(_syncOnline);
+      old.online?.left.removeListener(_onLeft);
+      widget.online?.moves.addListener(_syncOnline);
+      widget.online?.left.addListener(_onLeft);
+    }
+  }
+
+  @override
+  void dispose() {
+    _online?.moves.removeListener(_syncOnline);
+    _online?.left.removeListener(_onLeft);
+    super.dispose();
+  }
 
   static const _levelNames = {1: 'Oson', 2: "O'rta", 3: 'Qiyin'};
 
   @override
   void initState() {
     super.initState();
+    _online?.moves.addListener(_syncOnline);
+    _online?.left.addListener(_onLeft);
+    if (_online != null) WidgetsBinding.instance.addPostFrameCallback((_) => _syncOnline());
     _maybeAi();
   }
 
@@ -97,7 +164,8 @@ class _ChessScreenState extends State<ChessScreen> {
   }
 
   Future<void> _tap(int sq) async {
-    if (_thinking || _aiTurn || _game.result != ChessResult.playing) return;
+    if (_thinking || _aiTurn || _waitingOpponent || _game.result != ChessResult.playing) return;
+    if (_online?.left.value != null) return;
     final piece = _game.board[sq];
     final mine = piece.isNotEmpty && (isWhitePiece(piece) == (_game.turn == 'w'));
     final sel = _selected;
@@ -119,6 +187,11 @@ class _ChessScreenState extends State<ChessScreen> {
           _game.play(move);
           _selected = null;
         });
+        if (_online != null) {
+          _applied++;
+          _online!.send(move.toString());
+          _checkEnd();
+        }
         _maybeAi();
         return;
       }
@@ -181,7 +254,11 @@ class _ChessScreenState extends State<ChessScreen> {
       ChessResult.material => "Durang (matga dona yetmaydi)",
       ChessResult.playing => _thinking
           ? "Kompyuter o'ylayapti..."
-          : '$side navbati${_game.inCheck() ? ' — SHAX!' : ''}',
+          : _online != null
+              ? (_waitingOpponent
+                  ? "Raqib o'ylayapti...${_game.inCheck() ? ' — SHAX!' : ''}"
+                  : 'Sizning navbatingiz${_game.inCheck() ? ' — SHAX!' : ''}')
+              : '$side navbati${_game.inCheck() ? ' — SHAX!' : ''}',
     };
   }
 
@@ -197,6 +274,11 @@ class _ChessScreenState extends State<ChessScreen> {
   }
 
   String _playerName(String color) {
+    final o = _online;
+    if (o != null) {
+      final uid = color == 'w' ? o.first : o.players.firstWhere((p) => p.$1 != o.first).$1;
+      return uid == o.myUid ? '${o.nameOf(uid)} (siz)' : o.nameOf(uid);
+    }
     if (widget.vsAi && color != widget.humanColor) {
       return 'Kompyuter (${_levelNames[widget.level]})';
     }
@@ -290,18 +372,20 @@ class _ChessScreenState extends State<ChessScreen> {
       title: 'Shaxmat',
       palette: GamePalette.chess,
       actions: [
-        IconButton(
-            tooltip: 'Yurishni qaytarish',
-            icon: const Icon(Icons.undo_rounded),
-            onPressed: _game.canUndo && !_thinking ? _undo : null),
+        if (_online == null)
+          IconButton(
+              tooltip: 'Yurishni qaytarish',
+              icon: const Icon(Icons.undo_rounded),
+              onPressed: _game.canUndo && !_thinking ? _undo : null),
         IconButton(
             tooltip: 'Taxtani aylantirish',
             icon: const Icon(Icons.screen_rotation_alt_rounded),
             onPressed: () => setState(() => _flipped = !_flipped)),
-        IconButton(
-            tooltip: 'Qaytadan',
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _restart),
+        if (_online == null)
+          IconButton(
+              tooltip: 'Qaytadan',
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _restart),
       ],
       body: Stack(
         children: [
@@ -358,19 +442,23 @@ class _ChessScreenState extends State<ChessScreen> {
               ],
             );
           }),
-          if (result != ChessResult.playing)
+          if (result != ChessResult.playing || _online?.left.value != null)
             Positioned.fill(
               child: WinOverlay(
-                title: result == ChessResult.checkmate ? 'Mat!' : 'Durang',
-                subtitle: _status(),
-                confetti: result == ChessResult.checkmate,
+                title: _online?.left.value != null && result == ChessResult.playing
+                    ? 'Raqib chiqib ketdi'
+                    : result == ChessResult.checkmate
+                        ? (_online == null ? 'Mat!' : (_game.turn != _myColor ? 'Siz yutdingiz!' : 'Mat — yutqazdingiz'))
+                        : 'Durang',
+                subtitle: _online?.left.value != null && result == ChessResult.playing ? 'Siz yutdingiz' : _status(),
+                confetti: result == ChessResult.checkmate && (_online == null || _game.turn != _myColor),
                 color: const Color(0xFFE8C07A),
                 actions: [
                   GameButton(
                     label: "Yana o'ynash",
                     icon: Icons.replay_rounded,
                     colors: const [Color(0xFFE8C07A), Color(0xFFB07A3A)],
-                    onPressed: _restart,
+                    onPressed: _online != null ? _online!.again : _restart,
                   ),
                   GameButton(
                     label: 'Bosh menyu',

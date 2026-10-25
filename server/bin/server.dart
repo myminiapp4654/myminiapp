@@ -45,7 +45,7 @@ Future<void> main() async {
   final store = Store(dataDir: dataDir);
   final hub = Hub(
     db: store,
-    handlers: {...roomHandlers(), ...scoreHandlers(), ...stackHandlers(adminIds)},
+    handlers: {...roomHandlers(), ...scoreHandlers(), ...stackHandlers(adminIds), ...playHandlers(adminIds)},
     botToken: botToken,
     devLogin: devLogin,
     botUsername: botUsername,

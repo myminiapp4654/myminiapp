@@ -14,6 +14,7 @@ import '../games/stack/stack_screen.dart';
 import '../games/walls/walls_screen.dart';
 import '../games/xo/xo_screen.dart';
 import '../net/server_client.dart';
+import 'online_room_screen.dart';
 import '../telegram/telegram.dart';
 import '../ui/game_art.dart';
 import '../ui/kit.dart';
@@ -83,6 +84,9 @@ Future<void> _openXo(BuildContext context) async {
   await _push(context, XoScreen(size: picked.size, level: picked.level));
 }
 
+/// Admin (yoki dasturchi debug rejimida) — onlayn xona ocha oladi.
+bool get _isAdmin => kDebugMode || (ServerClient.instance.user.value?.admin ?? false);
+
 /// Oddiy foydalanuvchilarga ko'rinadigan o'yinlar (admin hammasini ko'radi).
 const _publicGames = ['Stack', 'Shaxmat', 'Shashka', 'Neon Snake'];
 
@@ -95,6 +99,12 @@ final _games = <_GameInfo>[
   }),
   _GameInfo('Shaxmat', 'Kompyuterga qarshi', GameArt.chess,
       const [Color(0xFF8E5A2B), Color(0xFF3B2412)], (context) async {
+    if (_isAdmin) {
+      final online = await showModeSetup(context,
+          title: 'Shaxmat', colors: const [Color(0xFFE8C07A), Color(0xFF8E5A2B)]);
+      if (online == null || !context.mounted) return;
+      if (online) return OnlineRoomScreen.create(context, 'chess');
+    }
     final s = await showChessSetup(context);
     if (s == null || !context.mounted) return;
     await _push(context,
@@ -111,6 +121,12 @@ final _games = <_GameInfo>[
   _GameInfo('Shashka', 'Kompyuterga qarshi', GameArt.checkers,
       const [Color(0xFFE65100), Color(0xFF6D1B00)],
       (context) async {
+    if (_isAdmin) {
+      final online = await showModeSetup(context,
+          title: 'Shashka', colors: const [Color(0xFFFFB347), Color(0xFFE65100)]);
+      if (online == null || !context.mounted) return;
+      if (online) return OnlineRoomScreen.create(context, 'checkers');
+    }
     final level = await showLevelSetup(context,
         title: 'Shashka', colors: const [Color(0xFFFFB347), Color(0xFFE65100)]);
     if (level == null || !context.mounted) return;
@@ -142,8 +158,7 @@ final _games = <_GameInfo>[
   _GameInfo('Stack', 'Minora musobaqasi', GameArt.stack,
       const [Color(0xFF3D7BD9), Color(0xFF14254A)],
       (context) async {
-    final admin = kDebugMode || (ServerClient.instance.user.value?.admin ?? false);
-    final s = await showStackSetup(context, allowOnline: admin);
+    final s = await showStackSetup(context, allowOnline: _isAdmin);
     if (s == null || !context.mounted) return;
     if (s.online) return StackOnlineScreen.create(context);
     await _push(context, s.race ? StackRaceScreen(bots: s.bots, level: s.level) : const StackScreen());
@@ -172,13 +187,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     final start = Telegram.startParam;
-    if (!_startHandled && start != null && start.startsWith(kStackLinkPrefix)) {
-      _startHandled = true;
-      final code = start.substring(kStackLinkPrefix.length);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => StackOnlineScreen(code: code)));
-      });
+    if (!_startHandled && start != null) {
+      // Taklif havolasi: stack_<KOD> yoki play_<KOD>
+      Widget? screen;
+      if (start.startsWith(kStackLinkPrefix)) {
+        screen = StackOnlineScreen(code: start.substring(kStackLinkPrefix.length));
+      } else if (start.startsWith(kPlayLinkPrefix)) {
+        screen = OnlineRoomScreen(code: start.substring(kPlayLinkPrefix.length));
+      }
+      if (screen != null) {
+        _startHandled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen!));
+        });
+      }
     }
   }
 

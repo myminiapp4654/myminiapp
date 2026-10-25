@@ -530,3 +530,37 @@ Future<int?> showLevelSetup(
     ),
   );
 }
+
+/// Admin uchun: kompyuter bilanmi yoki do'st bilan onlaynmi. true — onlayn.
+Future<bool?> showModeSetup(BuildContext context, {required String title, required List<Color> colors}) {
+  var online = false;
+  return showGameSetup<bool>(
+    context,
+    title: title,
+    colors: colors,
+    onStart: () => online,
+    builder: (ctx, setState) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SetupLabel('Kim bilan'),
+        ChoiceRow(children: [
+          ChoiceCard(
+            selected: !online,
+            color: colors.first,
+            icon: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 36),
+            label: 'Kompyuter',
+            onTap: () => setState(() => online = false),
+          ),
+          ChoiceCard(
+            selected: online,
+            color: colors.first,
+            icon: const Icon(Icons.wifi_rounded, color: Colors.white, size: 36),
+            label: "Do'st bilan",
+            hint: 'onlayn, havola orqali',
+            onTap: () => setState(() => online = true),
+          ),
+        ]),
+      ],
+    ),
+  );
+}
