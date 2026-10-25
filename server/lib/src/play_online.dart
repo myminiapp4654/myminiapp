@@ -16,7 +16,7 @@ const kTurnGames = {'chess', 'checkers'};
 
 /// Onlayn xonalar (Shaxmat, Shashka, Neon Snake).
 ///
-/// Xonani faqat admin ochadi, boshqalar taklif havolasi bilan kiradi.
+/// Xonani istalgan foydalanuvchi ochadi va do'stlarini havola bilan taklif qiladi.
 /// Hujjat `play/<KOD>`:
 ///   game, host, state: lobby | playing | done, round, first (birinchi yuruvchi),
 ///   players: {uid: {name, order, ready}}, moves: [yurish matni, ...],
@@ -39,9 +39,6 @@ Map<String, Handler> playHandlers(Set<String> adminIds) => {
 final _rnd = Random();
 
 Object? _create(Ctx c, Map<String, dynamic> p, Set<String> adminIds) {
-  if (!(c.uid.startsWith('tg') && adminIds.contains(c.uid.substring(2)))) {
-    throw GameError('Faqat admin xona ocha oladi');
-  }
   final game = pStr(p, 'game', maxLen: 20);
   if (!kPlayGames.containsKey(game)) throw GameError("Noma'lum o'yin");
   final code = c.db.newCode(kPlay);

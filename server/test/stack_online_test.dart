@@ -6,9 +6,9 @@ void main() {
   Object? call(Store db, String uid, String m, [Map<String, dynamic> p = const {}]) =>
       h[m]!(Ctx(db, uid, 'N$uid'), p);
 
-  test("xonani faqat admin ochadi, do'stlar havola bilan kiradi, hamma tayyor — boshlanadi", () {
+  test("xonani istalgan foydalanuvchi ochadi, do'stlar havola bilan kiradi, hamma tayyor — boshlanadi", () {
     final db = Store();
-    expect(() => call(db, 'tg222', 'stack.create'), throwsA(isA<GameError>()));
+    expect((call(db, 'tg222', 'stack.create') as Map)['code'], isA<String>());
     final code = (call(db, 'tg111', 'stack.create') as Map)['code'] as String;
     call(db, 'tg222', 'stack.join', {'code': code});
     var d = db.get('stack/$code')!;

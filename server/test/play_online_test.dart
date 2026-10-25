@@ -6,9 +6,11 @@ void main() {
   Object? call(Store db, String uid, String m, [Map<String, dynamic> p = const {}]) =>
       h[m]!(Ctx(db, uid, 'N$uid'), p);
 
-  test("shaxmat xonasi: faqat admin ochadi, navbat tekshiriladi, ranglar almashadi", () {
+  test("shaxmat xonasi: istalgan foydalanuvchi ochadi, navbat tekshiriladi, ranglar almashadi", () {
     final db = Store();
-    expect(() => call(db, 'tg2', 'play.create', {'game': 'chess'}), throwsA(isA<GameError>()));
+    // Istalgan foydalanuvchi xona ocha oladi
+    expect((call(db, 'tg2', 'play.create', {'game': 'chess'}) as Map)['code'], isA<String>());
+    expect(() => call(db, 'tg2', 'play.create', {'game': 'tetris'}), throwsA(isA<GameError>()));
     final code = (call(db, 'tg111', 'play.create', {'game': 'chess'}) as Map)['code'] as String;
     call(db, 'tg2', 'play.join', {'code': code});
     expect(() => call(db, 'tg3', 'play.join', {'code': code}), throwsA(isA<GameError>())); // 2 kishilik

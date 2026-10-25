@@ -84,9 +84,6 @@ Future<void> _openXo(BuildContext context) async {
   await _push(context, XoScreen(size: picked.size, level: picked.level));
 }
 
-/// Admin (yoki dasturchi debug rejimida) — onlayn xona ocha oladi.
-bool get _isAdmin => kDebugMode || (ServerClient.instance.user.value?.admin ?? false);
-
 /// Oddiy foydalanuvchilarga ko'rinadigan o'yinlar (admin hammasini ko'radi).
 const _publicGames = ['Stack', 'Shaxmat', 'Shashka', 'Neon Snake'];
 
@@ -99,7 +96,7 @@ final _games = <_GameInfo>[
   }),
   _GameInfo('Shaxmat', 'Kompyuterga qarshi', GameArt.chess,
       const [Color(0xFF8E5A2B), Color(0xFF3B2412)], (context) async {
-    if (_isAdmin) {
+    {
       final online = await showModeSetup(context,
           title: 'Shaxmat', colors: const [Color(0xFFE8C07A), Color(0xFF8E5A2B)]);
       if (online == null || !context.mounted) return;
@@ -121,7 +118,7 @@ final _games = <_GameInfo>[
   _GameInfo('Shashka', 'Kompyuterga qarshi', GameArt.checkers,
       const [Color(0xFFE65100), Color(0xFF6D1B00)],
       (context) async {
-    if (_isAdmin) {
+    {
       final online = await showModeSetup(context,
           title: 'Shashka', colors: const [Color(0xFFFFB347), Color(0xFFE65100)]);
       if (online == null || !context.mounted) return;
@@ -143,7 +140,7 @@ final _games = <_GameInfo>[
   }),
   _GameInfo('Neon Snake', 'Eng uzun ilon bo\'ling', GameArt.snake,
       const [Color(0xFF00B8C4), Color(0xFF0B0820)], (context) async {
-    if (_isAdmin) {
+    {
       final online = await showModeSetup(context,
           title: 'Neon Snake', colors: const [Color(0xFF00F5FF), Color(0xFFB967FF)]);
       if (online == null || !context.mounted) return;
@@ -164,7 +161,7 @@ final _games = <_GameInfo>[
   _GameInfo('Stack', 'Minora musobaqasi', GameArt.stack,
       const [Color(0xFF3D7BD9), Color(0xFF14254A)],
       (context) async {
-    final s = await showStackSetup(context, allowOnline: _isAdmin);
+    final s = await showStackSetup(context, allowOnline: true);
     if (s == null || !context.mounted) return;
     if (s.online) return StackOnlineScreen.create(context);
     await _push(context, s.race ? StackRaceScreen(bots: s.bots, level: s.level) : const StackScreen());

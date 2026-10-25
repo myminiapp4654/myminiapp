@@ -9,7 +9,7 @@ const kStackCountdownMs = 3000;
 
 /// Onlayn Stack musobaqasi.
 ///
-/// Xonani faqat admin ochadi, boshqalar taklif havolasi bilan kiradi.
+/// Xonani istalgan foydalanuvchi ochadi va do'stlarini havola bilan taklif qiladi.
 /// Hujjat `stack/<KOD>`:
 ///   host, state: lobby | playing | done, startAt, serverNow,
 ///   players: {uid: {name, order, ready, over, moves: [siljish, ...]}}
@@ -27,14 +27,10 @@ Map<String, Handler> stackHandlers(Set<String> adminIds) => {
       'stack.leave': _leave,
     };
 
-bool _isAdmin(Ctx c, Set<String> adminIds) =>
-    c.uid.startsWith('tg') && adminIds.contains(c.uid.substring(2));
-
 Map<String, dynamic> _player(Ctx c, int order) =>
     {'name': c.name, 'order': order, 'ready': false, 'over': false, 'moves': <double>[]};
 
 Object? _create(Ctx c, Set<String> adminIds) {
-  if (!_isAdmin(c, adminIds)) throw GameError('Faqat admin xona ocha oladi');
   final code = c.db.newCode(kStack);
   c.db.set('$kStack/$code', {
     'code': code,
