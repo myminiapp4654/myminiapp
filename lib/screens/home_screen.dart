@@ -83,6 +83,9 @@ Future<void> _openXo(BuildContext context) async {
   await _push(context, XoScreen(size: picked.size, level: picked.level));
 }
 
+/// Oddiy foydalanuvchilarga ko'rinadigan o'yinlar (admin hammasini ko'radi).
+const _publicGames = ['Stack', 'Shaxmat', 'Shashka', 'Neon Snake'];
+
 final _games = <_GameInfo>[
   _GameInfo('Ilon va narvon', 'Har safar yangi taxta', GameArt.snakes,
       const [Color(0xFF43A047), Color(0xFF1B4D2B)], (context) async {
@@ -196,7 +199,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Admin (yoki dasturchi debug rejimida) — barcha o'yinlar, qolganlar — faqat Stack.
   List<_GameInfo> get _visible {
     final all = widget.allGames ?? (kDebugMode || (ServerClient.instance.user.value?.admin ?? false));
-    return all ? _games : _games.where((g) => g.title == 'Stack').toList();
+    if (all) return _games;
+    return [for (final t in _publicGames) ..._games.where((g) => g.title == t)];
   }
 
   @override
