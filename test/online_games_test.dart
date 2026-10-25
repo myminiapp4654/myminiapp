@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oyinim/games/checkers/checkers_screen.dart';
+import 'dart:async';
+
 import 'package:oyinim/games/chess/chess_screen.dart';
+import 'package:oyinim/games/snake/snake_screen.dart';
 import 'package:oyinim/net/online_match.dart';
 
 /// Server o'rniga: yuborilgan yurishlar ro'yxatga tushadi.
@@ -105,5 +108,40 @@ void main() {
     expect(f.sent, ['${sq(2, 5)}-${sq(3, 4)}']);
     expect(find.text("Ali o'ylayapti…"), findsOneWidget);
     await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets("neon snake onlayn: holat yuboriladi, raqib ilonchasi paydo bo'ladi, raund vaqti", (t) async {
+    t.view.physicalSize = const Size(1080, 2400);
+    t.view.devicePixelRatio = 2.5;
+    addTearDown(t.view.reset);
+    final sent = <Map<String, dynamic>>[];
+    final foe = StreamController<Map<String, dynamic>?>();
+    final match = OnlineMatch(
+      code: 'ABC123',
+      myUid: 'me',
+      players: const [('me', 'Men'), ('foe', 'Ali')],
+      first: 'me',
+      seed: 5,
+      countdown: 0,
+      moves: ValueNotifier(const []),
+      left: ValueNotifier(null),
+      send: (_) {},
+      end: () {},
+      again: () {},
+      sendState: sent.add,
+      watchState: (uid) => foe.stream,
+    );
+    await t.pumpWidget(MaterialApp(home: SnakeScreen(online: match)));
+    for (var k = 0; k < 6; k++) {
+      await t.pump(const Duration(milliseconds: 60));
+    }
+    expect(sent, isNotEmpty);
+    expect(sent.last['v'], isTrue);
+    expect(find.byKey(const ValueKey('round-time')), findsOneWidget);
+    foe.add({'x': 100.0, 'y': 0.0, 'a': 0.0, 'l': 20, 'v': true, 'n': 0, 'b': 20, 'e': <String>[]});
+    await t.pump(const Duration(milliseconds: 60));
+    expect(find.text('Ali'), findsWidgets); // reytingda
+    await t.pumpWidget(const SizedBox());
+    unawaited(foe.close());
   });
 }

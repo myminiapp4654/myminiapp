@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import '../../net/online_match.dart';
 import '../../net/server_client.dart';
 import '../../ui/kit.dart';
 import 'snake_game.dart';
@@ -29,7 +31,10 @@ class SnakeScreen extends StatefulWidget {
   /// Testlar uchun
   final int? seed;
 
-  const SnakeScreen({super.key, this.level = 2, this.seed});
+  /// Onlayn o'yin (do'stlar bilan, 3 daqiqalik raund).
+  final OnlineMatch? online;
+
+  const SnakeScreen({super.key, this.level = 2, this.seed, this.online});
 
   @override
   State<SnakeScreen> createState() => _SnakeScreenState();
@@ -37,11 +42,51 @@ class SnakeScreen extends StatefulWidget {
 
 class _SnakeScreenState extends State<SnakeScreen>
     with SingleTickerProviderStateMixin {
-  late SnakeWorld _world = SnakeWorld(
-    level: widget.level,
-    seed: widget.seed,
-    playerName: _myName(),
-  );
+  late SnakeWorld _world = _newWorld();
+
+  SnakeWorld _newWorld() {
+    final o = widget.online;
+    if (o == null) {
+      return SnakeWorld(level: widget.level, seed: widget.seed, playerName: _myName());
+    }
+    final myIndex = o.players.indexWhere((p) => p.$1 == o.myUid);
+    return SnakeWorld.online(
+      seed: o.seed,
+      myUid: o.myUid,
+      myName: o.nameOf(o.myUid),
+      others: [for (final p in o.players) if (p.$1 != o.myUid) p],
+      myColor: max(0, myIndex),
+    );
+  }
+
+  // ---- onlayn
+  static const roundSeconds = 180.0;
+  final _subs = <StreamSubscription>[];
+  Timer? _sendTimer;
+  bool _ended = false;
+  bool get _isOnline => widget.online != null;
+  double get _timeLeft => max(0, roundSeconds - _world.time);
+
+  void _startOnline() {
+    final o = widget.online!;
+    for (final (uid, _) in o.players) {
+      if (uid == o.myUid) continue;
+      final watch = o.watchState?.call(uid);
+      if (watch == null) continue;
+      _subs.add(watch.listen((st) {
+        if (st != null) _world.applyRemote(uid, st);
+      }));
+    }
+    // Chiqib ketgan o'yinchining ilonini olib tashlaymiz
+    o.left.addListener(() {
+      final u = o.left.value;
+      if (u != null) _world.removeRemote(u);
+    });
+    // Har 0.1 soniyada o'z holatimni yuboraman
+    _sendTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!_ended) o.sendState?.call(_world.myState());
+    });
+  }
   late final Ticker _ticker = createTicker(_tick);
   Duration _last = Duration.zero;
 
@@ -58,11 +103,16 @@ class _SnakeScreenState extends State<SnakeScreen>
   void initState() {
     super.initState();
     _ticker.start();
+    if (_isOnline) _startOnline();
   }
 
   @override
   void dispose() {
     _ticker.dispose();
+    _sendTimer?.cancel();
+    for (final s in _subs) {
+      s.cancel();
+    }
     super.dispose();
   }
 
@@ -80,10 +130,22 @@ class _SnakeScreenState extends State<SnakeScreen>
       HapticFeedback.heavyImpact();
       _best = max(_best, p.length);
     }
+    // Onlayn raund tugadi
+    if (_isOnline && !_ended && _timeLeft <= 0) {
+      _ended = true;
+      widget.online!.sendState?.call(_world.myState());
+      widget.online!.end();
+      HapticFeedback.heavyImpact();
+    }
     setState(() {});
   }
 
   void _restart() {
+    if (_isOnline) {
+      // Onlayn: shu raundda qayta tug'ilish
+      setState(() => _world.respawn());
+      return;
+    }
     setState(() {
       _world = SnakeWorld(
         level: widget.level,
@@ -97,6 +159,7 @@ class _SnakeScreenState extends State<SnakeScreen>
   // ---------------------------------------------------------------- joystik
 
   void _down(Offset p) {
+    if (_ended) return;
     _touched = true;
     setState(() {
       _stickOrigin = p;
@@ -183,6 +246,26 @@ class _SnakeScreenState extends State<SnakeScreen>
               ),
             ),
           ),
+          // Onlayn: raund vaqti
+          if (_isOnline)
+            Positioned(
+              top: 8,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                child: Center(
+                  child: Text(
+                    '${_timeLeft ~/ 60}:${(_timeLeft % 60).floor().toString().padLeft(2, '0')}',
+                    key: const ValueKey('round-time'),
+                    style: TextStyle(
+                      color: _timeLeft < 20 ? const Color(0xFFFF5A5A) : Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           // Reyting
           Positioned(
             right: 12,
@@ -216,7 +299,8 @@ class _SnakeScreenState extends State<SnakeScreen>
                 ),
               ),
             ),
-          if (!p.alive && w.time - p.diedAt > 1.2)
+          if (_ended) Positioned.fill(child: _results()),
+          if (!_ended && !p.alive && w.time - p.diedAt > 1.2)
             Positioned.fill(
               child: WinOverlay(
                 title: "Ilon o'ldi",
@@ -226,7 +310,7 @@ class _SnakeScreenState extends State<SnakeScreen>
                 color: const Color(0xFF00F5FF),
                 actions: [
                   GameButton(
-                    label: 'Qayta boshlash',
+                    label: _isOnline ? "Qayta tug'ilish" : 'Qayta boshlash',
                     icon: Icons.replay_rounded,
                     colors: const [Color(0xFF00F5FF), Color(0xFFB967FF)],
                     onPressed: _restart,
@@ -242,6 +326,38 @@ class _SnakeScreenState extends State<SnakeScreen>
             ),
         ],
       ),
+    );
+  }
+
+  /// Onlayn raund natijalari: raund davomidagi eng katta uzunlik bo'yicha.
+  Widget _results() {
+    final o = widget.online!;
+    final rows = <(String, int, bool)>[
+      (o.nameOf(o.myUid), max(_world.best, _world.player.length), true),
+      for (final s in _world.remotes.values) (s.name, max(s.netBest, s.alive ? s.length : 0), false),
+    ]..sort((a, b) => b.$2.compareTo(a.$2));
+    final myPlace = rows.indexWhere((r) => r.$3) + 1;
+    return WinOverlay(
+      title: myPlace == 1 ? '🏆 Siz yutdingiz!' : "$myPlace-o'rin",
+      subtitle: [
+        for (var k = 0; k < rows.length; k++) '${k + 1}. ${rows[k].$1} — ${rows[k].$2}',
+      ].join('\n'),
+      confetti: myPlace == 1,
+      color: const Color(0xFF00F5FF),
+      actions: [
+        GameButton(
+          label: "Yana o'ynash",
+          icon: Icons.replay_rounded,
+          colors: const [Color(0xFF00F5FF), Color(0xFFB967FF)],
+          onPressed: o.again,
+        ),
+        GameButton(
+          label: 'Bosh menyu',
+          outlined: true,
+          colors: const [Colors.white70, Colors.white70],
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
     );
   }
 
@@ -413,15 +529,15 @@ class _WorldPainter extends CustomPainter {
     final outside = Path()
       ..fillType = PathFillType.evenOdd
       ..addRect(
-        Rect.fromCircle(center: Offset.zero, radius: SnakeWorld.radius * 2),
+        Rect.fromCircle(center: Offset.zero, radius: w.radius * 2),
       )
       ..addOval(
-        Rect.fromCircle(center: Offset.zero, radius: SnakeWorld.radius),
+        Rect.fromCircle(center: Offset.zero, radius: w.radius),
       );
     canvas.drawPath(outside, Paint()..color = const Color(0xFF1A0510));
     canvas.drawCircle(
       Offset.zero,
-      SnakeWorld.radius,
+      w.radius,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 14
@@ -430,7 +546,7 @@ class _WorldPainter extends CustomPainter {
     );
     canvas.drawCircle(
       Offset.zero,
-      SnakeWorld.radius,
+      w.radius,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
@@ -573,7 +689,7 @@ class _MiniMapPainter extends CustomPainter {
         ..strokeWidth = 1.5
         ..color = const Color(0xFFFF2E5F).withValues(alpha: 0.7),
     );
-    final k = r / SnakeWorld.radius;
+    final k = r / w.radius;
     for (final s in w.snakes) {
       if (!s.alive) continue;
       final dot = 1.5 + min(3.0, s.length / 40);

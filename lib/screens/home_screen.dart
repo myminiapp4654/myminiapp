@@ -143,6 +143,12 @@ final _games = <_GameInfo>[
   }),
   _GameInfo('Neon Snake', 'Eng uzun ilon bo\'ling', GameArt.snake,
       const [Color(0xFF00B8C4), Color(0xFF0B0820)], (context) async {
+    if (_isAdmin) {
+      final online = await showModeSetup(context,
+          title: 'Neon Snake', colors: const [Color(0xFF00F5FF), Color(0xFFB967FF)]);
+      if (online == null || !context.mounted) return;
+      if (online) return OnlineRoomScreen.create(context, 'snake');
+    }
     final level = await showLevelSetup(context,
         title: 'Neon Snake', colors: const [Color(0xFF00F5FF), Color(0xFFB967FF)]);
     if (level == null || !context.mounted) return;

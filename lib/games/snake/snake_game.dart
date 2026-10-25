@@ -12,8 +12,11 @@ import 'dart:ui' show Offset;
 ///
 /// Mantiq ekrandan mustaqil: keyinchalik serverda (onlayn) ham ishlatish mumkin.
 class SnakeWorld {
-  /// Arena radiusi (markaz — 0,0).
-  static const radius = 1400.0;
+  /// Arena radiusi (markaz — 0,0). Onlayn o'yinda kichikroq — o'yinchilar
+  /// bir-birini tezroq topadi.
+  final double radius;
+  static const defaultRadius = 1400.0;
+  static const onlineRadius = 850.0;
   static const spacing = 8.0; // bo'g'imlar orasidagi masofa
   static const speed = 165.0; // birlik/soniya
   static const turnRate = 13.0; // radian/soniya: 150° ~0.2 soniyada
@@ -52,9 +55,34 @@ class SnakeWorld {
     'Zilzila',
   ];
 
+  // ---------------------------------------------------------------- onlayn
+  /// Onlayn o'yin: kompyuter ilonlari yo'q, boshqa o'yinchilar holati serverdan keladi.
+  final bool online;
+  final String myUid;
+  final int _seed;
+
+  /// Ozuqa "uyalari": har bir uyaning avlodi. Ozuqa joyi (urug', uya, avlod)
+  /// dan hisoblanadi — shuning uchun hamma telefonda bir xil.
+  final _slotGen = <int>[];
+  static const onlineFood = 280;
+
+  /// Boshqa o'yinchilar ilonlari (uid bo'yicha).
+  final remotes = <String, Snake>{};
+
+  /// Yuborilishi kerak bo'lgan yeyilgan ozuqalar.
+  final eatenOut = <String>[];
+
+  /// Necha marta o'ldim (o'lim ozuqasi nomi uchun) va eng katta uzunlik.
+  int deaths = 0;
+  int best = 0;
+
   /// [playerName] — o'yinchining Telegram'dagi ismi.
   SnakeWorld({this.level = 2, int? seed, String playerName = 'Siz'})
-    : r = Random(seed) {
+    : r = Random(seed),
+      radius = defaultRadius,
+      online = false,
+      myUid = 'me',
+      _seed = 0 {
     snakes.add(
       Snake(
         _nextId++,
@@ -70,6 +98,167 @@ class SnakeWorld {
     }
     while (food.length < foodTarget) {
       _spawnFood();
+    }
+  }
+
+  /// Onlayn o'yin dunyosi: [others] — boshqa o'yinchilar (uid, ism).
+  SnakeWorld.online({
+    required int seed,
+    required this.myUid,
+    required String myName,
+    required List<(String, String)> others,
+    int myColor = 0,
+  }) : level = 0,
+       r = Random(seed ^ myUid.hashCode),
+       radius = onlineRadius,
+       online = true,
+       _seed = seed {
+    snakes.add(Snake(_nextId++, myName, myColor, isPlayer: true, start: _safeSpot(), angle: r.nextDouble() * 2 * pi));
+    for (var k = 0; k < others.length; k++) {
+      final (uid, name) = others[k];
+      // Holati kelguncha ko'rinmaydi
+      final s = Snake(_nextId++, name, (myColor + k + 1) % Snake.palette.length,
+          start: const Offset(0, 0), angle: 0, uid: uid)
+        ..alive = false;
+      remotes[uid] = s;
+      snakes.add(s);
+    }
+    for (var i = 0; i < onlineFood; i++) {
+      _slotGen.add(0);
+      food.add(_slotFood(i, 0));
+    }
+  }
+
+  /// Uya ozuqasi: joyi faqat (urug', uya, avlod) ga bog'liq.
+  Food _slotFood(int slot, int gen) {
+    final rr = Random(_seed * 31 + slot * 7919 + gen * 104729);
+    final a = rr.nextDouble() * 2 * pi;
+    final d = sqrt(rr.nextDouble()) * (radius - 30);
+    return Food(Offset(cos(a) * d, sin(a) * d), 1, rr.nextInt(Snake.palette.length), time, id: 's$slot:$gen');
+  }
+
+  /// Boshqalardan uzoqroq joy (paydo bo'lish uchun).
+  Offset _safeSpot() {
+    var best = _randomPoint(200);
+    var bestD = -1.0;
+    for (var k = 0; k < 20; k++) {
+      final p = _randomPoint(200);
+      var d = double.infinity;
+      for (final o in snakes) {
+        if (!o.alive) continue;
+        for (var i = 0; i < o.segs.length; i += 4) {
+          d = min(d, (o.segs[i] - p).distance);
+        }
+      }
+      if (d > bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  /// Ozuqani nomi bo'yicha olib tashlash (boshqa o'yinchi yedi).
+  void removeFood(String id) {
+    food.removeWhere((f) => f.id == id);
+    if (id.startsWith('s')) {
+      final parts = id.substring(1).split(':');
+      final slot = int.tryParse(parts[0]) ?? -1, gen = int.tryParse(parts.length > 1 ? parts[1] : '') ?? -1;
+      if (slot >= 0 && slot < _slotGen.length && _slotGen[slot] == gen) {
+        _slotGen[slot] = gen + 1;
+        food.add(_slotFood(slot, gen + 1));
+      }
+    }
+  }
+
+  /// Mening holatim (har 0.1 soniyada yuboriladi).
+  Map<String, dynamic> myState() {
+    final p = player;
+    final s = {
+      'x': double.parse(p.head.dx.toStringAsFixed(1)),
+      'y': double.parse(p.head.dy.toStringAsFixed(1)),
+      'a': double.parse(p.angle.toStringAsFixed(3)),
+      'l': p.length,
+      'v': p.alive,
+      'n': deaths,
+      'b': best,
+      'e': List.of(eatenOut),
+    };
+    eatenOut.clear();
+    return s;
+  }
+
+  /// Boshqa o'yinchining holati keldi.
+  void applyRemote(String uid, Map<String, dynamic> st) {
+    final s = remotes[uid];
+    if (s == null) return;
+    for (final id in (st['e'] as List? ?? const [])) {
+      removeFood(id as String);
+    }
+    s.netBest = (st['b'] as num?)?.toInt() ?? s.netBest;
+    final pos = Offset((st['x'] as num).toDouble(), (st['y'] as num).toDouble());
+    final angle = (st['a'] as num).toDouble();
+    final len = (st['l'] as num).toInt();
+    final alive = st['v'] == true;
+    final n = (st['n'] as num?)?.toInt() ?? 0;
+    if (!alive) {
+      if (s.alive) kill(s, deathNo: n);
+      return;
+    }
+    if (!s.alive || s.netDeaths != n) {
+      // Birinchi marta yoki qayta tug'ildi — shu joyda yangi ilon
+      final fresh = Snake(s.id, s.name, s.color, start: pos, angle: angle, length: len, uid: uid);
+      fresh.netBest = s.netBest;
+      final i = snakes.indexOf(s);
+      snakes[i] = fresh;
+      remotes[uid] = fresh;
+      fresh.netDeaths = n;
+      fresh.netHead = pos;
+      fresh.netAngle = angle;
+      fresh.netAt = time;
+      fresh.netLen = len;
+      return;
+    }
+    s.netHead = pos;
+    s.netAngle = angle;
+    s.netAt = time;
+    s.netLen = len;
+  }
+
+  /// O'yinchi chiqib ketdi.
+  void removeRemote(String uid) {
+    final s = remotes.remove(uid);
+    if (s != null) snakes.remove(s);
+  }
+
+  /// O'lgandan keyin qayta tug'ilish (onlayn).
+  void respawn() {
+    final old = player;
+    snakes[0] = Snake(old.id, old.name, old.color, isPlayer: true, start: _safeSpot(), angle: r.nextDouble() * 2 * pi);
+  }
+
+  /// Masofadagi ilon: oxirgi ma'lum joydan oldinga taxmin qilib yuradi va
+  /// kelgan holatga silliq tortiladi.
+  void _moveRemote(Snake s, double dt) {
+    final net = s.netHead;
+    if (net == null) return;
+    s.targetAngle = s.netAngle;
+    s.move(dt);
+    final ahead = min(0.5, time - s.netAt);
+    final predicted = net + Offset(cos(s.netAngle), sin(s.netAngle)) * (speed * ahead);
+    final delta = predicted - s.head;
+    if (delta.distance > 220) {
+      for (var k = 0; k < s.segs.length; k++) {
+        s.segs[k] = s.segs[k] + delta;
+      }
+    } else {
+      s.segs[0] = s.segs[0] + delta * min(1.0, dt * 6);
+    }
+    while (s.segs.length < s.netLen) {
+      s.segs.add(s.segs.last);
+    }
+    while (s.segs.length > s.netLen && s.segs.length > 2) {
+      s.segs.removeLast();
     }
   }
 
@@ -101,6 +290,8 @@ class SnakeWorld {
   void _spawnFood() {
     food.add(Food(_randomPoint(30), 1, r.nextInt(Snake.palette.length), time));
   }
+
+  // (onlayn o'yinda ozuqa uyalardan keladi, kompyuter ilonlari yo'q)
 
   void _spawnBot() {
     // Boshqa ilonlardan (butun tanasidan) va o'yinchidan uzoq joy
@@ -158,6 +349,18 @@ class SnakeWorld {
 
   void _step(double dt) {
     time += dt;
+    if (online) {
+      for (final s in snakes) {
+        if (!s.alive) continue;
+        s.isPlayer ? s.move(dt) : _moveRemote(s, dt);
+      }
+      _eat();
+      _collide();
+      if (player.alive) best = max(best, player.length);
+      food.removeWhere((f) => f.fromDeath && time - f.born > 25);
+      bursts.removeWhere((b) => time - b.start > b.duration);
+      return;
+    }
     for (final s in snakes) {
       if (!s.alive) continue;
       if (!s.isPlayer) _think(s, dt);
@@ -188,6 +391,8 @@ class SnakeWorld {
   void _eat() {
     for (final s in snakes) {
       if (!s.alive) continue;
+      // Onlayn: faqat o'zim yeyman, boshqalar yegani serverdan keladi
+      if (online && !s.isPlayer) continue;
       final reach = s.radius + 8;
       food.removeWhere((f) {
         if (f.born > time) return false; // portlash hali yetib kelmagan
@@ -196,8 +401,21 @@ class SnakeWorld {
           return false;
         }
         s.feed(f.value);
+        if (online) eatenOut.add(f.id);
         return true;
       });
+    }
+    if (online) {
+      // Yeyilgan uyalar yangi avlod bilan to'ladi
+      for (final id in eatenOut) {
+        if (!id.startsWith('s')) continue;
+        final parts = id.substring(1).split(':');
+        final slot = int.parse(parts[0]), gen = int.parse(parts[1]);
+        if (_slotGen[slot] == gen) {
+          _slotGen[slot] = gen + 1;
+          food.add(_slotFood(slot, gen + 1));
+        }
+      }
     }
   }
 
@@ -205,6 +423,8 @@ class SnakeWorld {
     final dead = <Snake>[];
     for (final a in snakes) {
       if (!a.alive) continue;
+      // Onlayn: har kim faqat o'z ilonining to'qnashuvini hisoblaydi
+      if (online && !a.isPlayer) continue;
       // Arena cheti
       if (a.head.distance > radius - a.radius) {
         dead.add(a);
@@ -228,16 +448,20 @@ class SnakeWorld {
   }
 
   /// Ilon o'ladi: tanasi zanjirli portlab, ozuqaga aylanadi.
-  void kill(Snake s) {
+  /// Onlayn: o'lim ozuqasi nomi (uid, o'lim raqami, bo'g'im) — hammada bir xil.
+  void kill(Snake s, {int? deathNo}) {
     if (!s.alive) return;
     s.alive = false;
     s.diedAt = time;
+    if (online && s.isPlayer) deaths++;
+    final n = deathNo ?? deaths;
+    final owner = s.uid ?? myUid;
     bursts.add(Burst(List.of(s.segs), s.color, time));
     for (var k = 0; k < s.segs.length; k += 2) {
-      final jitter = Offset(r.nextDouble() * 12 - 6, r.nextDouble() * 12 - 6);
+      final jitter = online ? Offset.zero : Offset(r.nextDouble() * 12 - 6, r.nextDouble() * 12 - 6);
       var p = s.segs[k] + jitter;
       if (p.distance > radius - 20) p = p / p.distance * (radius - 20);
-      food.add(Food(p, 2, s.color, time + k * Burst.delay, fromDeath: true));
+      food.add(Food(p, 2, s.color, time + k * Burst.delay, fromDeath: true, id: 'd$owner:$n:$k'));
     }
   }
 
@@ -367,6 +591,15 @@ class Snake {
   final int color; // palette indeksi
   final bool isPlayer;
 
+  /// Onlayn o'yinchi (boshqa telefondagi ilon).
+  final String? uid;
+  Offset? netHead;
+  double netAngle = 0;
+  double netAt = 0;
+  int netLen = SnakeWorld.startLength;
+  int netDeaths = 0;
+  int netBest = 0;
+
   /// Bo'g'imlar: [0] — bosh.
   final List<Offset> segs;
   double angle;
@@ -385,6 +618,7 @@ class Snake {
     required Offset start,
     required this.angle,
     int length = SnakeWorld.startLength,
+    this.uid,
   }) : targetAngle = angle,
        segs = [
          for (var k = 0; k < length; k++)
@@ -431,7 +665,10 @@ class Food {
   final int color;
   final double born;
   final bool fromDeath;
-  Food(this.pos, this.value, this.color, this.born, {this.fromDeath = false});
+
+  /// Onlayn o'yinda ozuqa nomi (kim yegani boshqalarga shu bilan yuboriladi).
+  final String id;
+  Food(this.pos, this.value, this.color, this.born, {this.fromDeath = false, this.id = ''});
 }
 
 /// O'lgan ilon tanasi bo'ylab boshdan dumga yuguradigan portlash.

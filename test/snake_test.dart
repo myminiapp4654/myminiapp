@@ -92,7 +92,7 @@ void main() {
     final w = alone();
     final p = w.player;
     for (var k = 0; k < p.segs.length; k++) {
-      p.segs[k] = Offset(0, -SnakeWorld.radius + 40 + k * SnakeWorld.spacing);
+      p.segs[k] = Offset(0, -w.radius + 40 + k * SnakeWorld.spacing);
     }
     for (var k = 0; k < 60 && p.alive; k++) {
       w.update(1 / 60);
@@ -152,5 +152,77 @@ void main() {
     }
     await g.up();
     await t.pumpWidget(const SizedBox());
+  });
+
+  group('onlayn', () {
+    (SnakeWorld, SnakeWorld) pair() => (
+          SnakeWorld.online(seed: 77, myUid: 'a', myName: 'A', others: const [('b', 'B')]),
+          SnakeWorld.online(seed: 77, myUid: 'b', myName: 'B', others: const [('a', 'A')], myColor: 1),
+        );
+
+    test("ozuqa hammada bir xil joyda", () {
+      final (a, b) = pair();
+      expect(a.food.length, SnakeWorld.onlineFood);
+      for (var k = 0; k < a.food.length; k++) {
+        expect(a.food[k].id, b.food[k].id);
+        expect(a.food[k].pos, b.food[k].pos);
+      }
+    });
+
+    test("A yegan ozuqa B da yo'qoladi, uyaga bir xil yangi ozuqa keladi", () {
+      final (a, b) = pair();
+      final f = a.food.first;
+      // A ning boshini ozuqa ustiga qo'yamiz
+      final p = a.player;
+      final shift = f.pos - p.head;
+      for (var k = 0; k < p.segs.length; k++) {
+        p.segs[k] = p.segs[k] + shift;
+      }
+      a.update(1 / 60);
+      expect(a.food.any((x) => x.id == f.id), isFalse);
+      final st = a.myState();
+      expect(st['e'], contains(f.id));
+      b.applyRemote('a', st);
+      expect(b.food.any((x) => x.id == f.id), isFalse);
+      final nextA = a.food.firstWhere((x) => x.id.startsWith('s0:'));
+      final nextB = b.food.firstWhere((x) => x.id.startsWith('s0:'));
+      expect(nextA.id, nextB.id);
+      expect(nextA.pos, nextB.pos);
+      // B dagi A ilonchasi paydo bo'ldi
+      expect(b.remotes['a']!.alive, isTrue);
+    });
+
+    test("A o'lsa B da portlaydi; o'lim ozuqasi nomlari mos; qayta tug'ilish", () {
+      final (a, b) = pair();
+      b.applyRemote('a', a.myState());
+      a.kill(a.player);
+      expect(a.deaths, 1);
+      b.applyRemote('a', a.myState());
+      expect(b.remotes['a']!.alive, isFalse);
+      final idsA = a.food.where((f) => f.fromDeath).map((f) => f.id).toSet();
+      final idsB = b.food.where((f) => f.fromDeath).map((f) => f.id).toSet();
+      expect(idsA, isNotEmpty);
+      expect(idsB, idsA);
+      // B o'lim ozuqasini yedi deb xabar bersa, A da ham yo'qoladi
+      a.removeFood(idsA.first);
+      expect(a.food.any((f) => f.id == idsA.first), isFalse);
+
+      a.respawn();
+      expect(a.player.alive, isTrue);
+      b.applyRemote('a', a.myState());
+      expect(b.remotes['a']!.alive, isTrue);
+    });
+
+    test("masofadagi ilon kelgan holatga ergashadi; faqat o'z to'qnashuvim hisoblanadi", () {
+      final (a, b) = pair();
+      for (var k = 0; k < 30; k++) {
+        a.update(1 / 30);
+        b.applyRemote('a', a.myState());
+        b.update(1 / 30);
+      }
+      expect((b.remotes['a']!.head - a.player.head).distance, lessThan(30));
+      expect(b.remotes['a']!.length, a.player.length);
+      expect(b.snakes.where((s) => !s.isPlayer).every((s) => s.uid != null), isTrue);
+    });
   });
 }

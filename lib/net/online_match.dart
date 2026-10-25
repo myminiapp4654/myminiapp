@@ -31,6 +31,10 @@ class OnlineMatch {
   final VoidCallback end;
   final VoidCallback again;
 
+  /// Jonli o'yinlar (Neon Snake): o'z holatini yuborish va boshqalarnikini kuzatish.
+  final void Function(Map<String, dynamic> state)? sendState;
+  final Stream<Map<String, dynamic>?> Function(String uid)? watchState;
+
   OnlineMatch({
     required this.code,
     required this.myUid,
@@ -43,6 +47,8 @@ class OnlineMatch {
     required this.send,
     required this.end,
     required this.again,
+    this.sendState,
+    this.watchState,
   });
 
   bool get iAmFirst => first == myUid;

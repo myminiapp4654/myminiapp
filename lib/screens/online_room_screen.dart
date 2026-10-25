@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../games/checkers/checkers_screen.dart';
 import '../games/chess/chess_screen.dart';
+import '../games/snake/snake_screen.dart';
 import '../net/online_match.dart';
 import '../net/server_client.dart';
 import '../telegram/telegram.dart';
@@ -26,6 +27,7 @@ class OnlineGameKind {
 final kOnlineGames = <String, OnlineGameKind>{
   'chess': OnlineGameKind('Shaxmat', GamePalette.chess, 2, (m) => ChessScreen(online: m)),
   'checkers': OnlineGameKind('Shashka', GamePalette.checkers, 2, (m) => CheckersScreen(online: m)),
+  'snake': OnlineGameKind('Neon Snake', GamePalette.snake, 4, (m) => SnakeScreen(online: m)),
 };
 
 /// Onlayn xona: kutish (o'rinlar, taklif, "Tayyorman") → o'yin → yana kutish.
@@ -126,6 +128,8 @@ class _OnlineRoomScreenState extends State<OnlineRoomScreen> {
         send: (m) => _call('play.move', {'m': m}),
         end: () => _call('play.end'),
         again: () => _call('play.again'),
+        sendState: (st) => _call('play.state', {'s': st}),
+        watchState: (uid) => _server.watch('pst/$_code/$uid').map((doc) => doc.data()),
       );
       HapticFeedback.mediumImpact();
     } else if (state == 'lobby') {
