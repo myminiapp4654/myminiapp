@@ -1,5 +1,7 @@
 library;
 
+export 'src/admin.dart';
+
 export 'src/bot.dart';
 export 'src/context.dart';
 export 'src/hub.dart';

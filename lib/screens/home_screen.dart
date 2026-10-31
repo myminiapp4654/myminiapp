@@ -14,6 +14,7 @@ import '../games/stack/stack_screen.dart';
 import '../games/knife/knife_screen.dart';
 import '../games/xo/xo_screen.dart';
 import '../net/server_client.dart';
+import 'admin_users_screen.dart';
 import 'online_room_screen.dart';
 import '../telegram/telegram.dart';
 import '../ui/game_art.dart';
@@ -94,7 +95,7 @@ final _games = <_GameInfo>[
     if (bots == null || !context.mounted) return;
     await _push(context, SnakesScreen(players: bots + 1));
   }),
-  _GameInfo('Shaxmat', 'Kompyuterga qarshi', GameArt.chess,
+  _GameInfo('Shaxmat', "Kompyuter • do'st bilan", GameArt.chess,
       const [Color(0xFF8E5A2B), Color(0xFF3B2412)], (context) async {
     {
       final online = await showModeSetup(context,
@@ -115,7 +116,7 @@ final _games = <_GameInfo>[
     if (level == null || !context.mounted) return;
     await _push(context, BattleshipScreen(level: level));
   }),
-  _GameInfo('Shashka', 'Kompyuterga qarshi', GameArt.checkers,
+  _GameInfo('Shashka', "Kompyuter • do'st bilan", GameArt.checkers,
       const [Color(0xFFE65100), Color(0xFF6D1B00)],
       (context) async {
     {
@@ -239,6 +240,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       palette: GamePalette.home,
       centerTitle: false,
       actions: [
+        // Faqat admin: botga kirganlar
+        if (kDebugMode || (ServerClient.instance.user.value?.admin ?? false))
+          IconButton(
+            key: const ValueKey('admin-users'),
+            tooltip: 'Foydalanuvchilar',
+            icon: const Icon(Icons.people_alt_rounded),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AdminUsersScreen()),
+            ),
+          ),
         // Murojaat uchun — bosilsa Telegram profil ochiladi
         Padding(
           padding: const EdgeInsets.only(right: 12),

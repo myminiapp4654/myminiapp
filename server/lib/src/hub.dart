@@ -156,14 +156,14 @@ class Hub {
       if (n == 1) onPresence?.call(uid, true);
     }
 
+    // Foydalanuvchi: ismi, birinchi va oxirgi kirgan vaqti
     final path = 'users/$uid';
-    final u = db.get(path) ?? {'uid': uid};
-    if (u['name'] != name) {
-      u['name'] = name;
-      db.set(path, u);
-    } else if (!db.exists(path)) {
-      db.set(path, u);
-    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final u = db.get(path) ?? {'uid': uid, 'first': now};
+    u['name'] = name;
+    u['first'] ??= now;
+    u['last'] = now;
+    db.set(path, u);
 
     s.send({
       't': 'authed',

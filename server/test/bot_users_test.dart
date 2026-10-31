@@ -26,4 +26,17 @@ void main() {
     again.dispose();
     dir.deleteSync(recursive: true);
   });
+
+  test("admin.users: faqat admin, ikkala ro'yxat", () {
+    final db = Store();
+    final bot = TelegramBot(token: 't', publicUrl: 'https://x', db: db);
+    bot.recordUser({'id': 10, 'first_name': 'Ali'}, start: true);
+    db.set('users/tg10', {'uid': 'tg10', 'name': 'Ali', 'first': 1, 'last': 2});
+    final h = adminHandlers({'1'})['admin.users']!;
+    expect(() => h(Ctx(db, 'tg10', 'Ali'), {}), throwsA(isA<GameError>()));
+    final r = h(Ctx(db, 'tg1', 'Admin'), {}) as Map;
+    expect((r['bot'] as List).single['name'], 'Ali');
+    expect((r['app'] as List).single['uid'], 'tg10');
+    db.dispose();
+  });
 }
