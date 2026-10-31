@@ -264,13 +264,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   color: Colors.white.withValues(alpha: 0.1),
                   border: Border.all(color: Colors.white24),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.send_rounded, color: Color(0xFF4FC3F7), size: 14),
-                    SizedBox(width: 5),
+                    const Icon(Icons.send_rounded, color: Color(0xFF4FC3F7), size: 14),
+                    const SizedBox(width: 5),
                     Text(
-                      'Murojaat: @Ulugbeck_dev',
+                      // Tor ekranda qisqaroq
+                      MediaQuery.sizeOf(context).width < 380 ? '@Ulugbeck_dev' : 'Murojaat: @Ulugbeck_dev',
                       style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
                     ),
                   ],
