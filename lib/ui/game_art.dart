@@ -6,7 +6,7 @@ import '../games/chess/chess_pieces.dart';
 import 'crown.dart';
 
 /// Bosh ekrandagi o'yin kartochkalari uchun kichik rasmlar.
-enum GameArt { xo, chess, checkers, battleship, snakes, maze, snake, chain, stack, walls }
+enum GameArt { xo, chess, checkers, battleship, snakes, maze, snake, chain, stack, knife }
 
 class GameArtPainter extends CustomPainter {
   final GameArt art;
@@ -37,8 +37,8 @@ class GameArtPainter extends CustomPainter {
         _chain(canvas, s);
       case GameArt.stack:
         _stack(canvas, s);
-      case GameArt.walls:
-        _walls(canvas, s);
+      case GameArt.knife:
+        _knife(canvas, s);
     }
     canvas.restore();
   }
@@ -371,26 +371,40 @@ class GameArtPainter extends CustomPainter {
     }
   }
 
-  void _walls(Canvas c, double s) {
-    final bw = s * 0.26, bh = s * 0.13;
-    for (var r = 0; r < 6; r++) {
-      for (var k = -1; k < 4; k++) {
-        final x = s * 0.06 + k * bw + (r.isOdd ? bw / 2 : 0);
-        final rect = Rect.fromLTWH(x, s * 0.1 + r * bh, bw - 3, bh - 3);
-        if ((r == 2 || r == 3) && (k == 1 || k == 2)) continue; // teshik
-        c.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(2)), Paint()
-          ..shader = LinearGradient(
-            colors: [const Color(0xFFD2694A), const Color(0xFF8E3B26)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ).createShader(rect));
-      }
+  void _knife(Canvas c, double s) {
+    final center = Offset(s * 0.5, s * 0.36);
+    final r = s * 0.2;
+    final turn = t * pi * 2;
+    // Sanchilgan pichoqlar
+    for (var k = 0; k < 4; k++) {
+      final a = turn + k * pi / 2 + 0.4;
+      final dir = Offset(cos(a), sin(a));
+      final tip = center + dir * r * 0.7;
+      final end = tip + dir * r * 0.95;
+      c.drawLine(tip, Offset.lerp(tip, end, 0.55)!, Paint()..color = const Color(0xFFE0E0E0)..strokeWidth = s * 0.03);
+      c.drawLine(Offset.lerp(tip, end, 0.55)!, end, Paint()..color = const Color(0xFF6D3B1F)..strokeWidth = s * 0.04..strokeCap = StrokeCap.round);
     }
-    // Teshikdan nur
-    final hole = Rect.fromLTWH(s * 0.32, s * 0.36, s * 0.42, s * 0.26);
-    c.drawRect(hole, Paint()
-      ..shader = RadialGradient(colors: [Colors.white.withValues(alpha: 0.9 - t * 0.3), const Color(0x00FFB347)])
-          .createShader(hole.inflate(20)));
+    // Yog'och
+    c.drawCircle(center, r, Paint()
+      ..shader = const RadialGradient(colors: [Color(0xFFE0B07A), Color(0xFFB5773F), Color(0xFF7A4A22)], stops: [0, 0.75, 1])
+          .createShader(Rect.fromCircle(center: center, radius: r)));
+    c.drawCircle(center, r * 0.97, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * 0.09
+      ..color = const Color(0xFF5D3A1A));
+    for (var k = 1; k <= 3; k++) {
+      c.drawCircle(center, r * 0.22 * k, Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0xFF8B5A2B).withValues(alpha: 0.5));
+    }
+    // Olma
+    final ap = center + Offset(cos(turn + 2.4), sin(turn + 2.4)) * r * 1.15;
+    c.drawCircle(ap, s * 0.04, Paint()..color = const Color(0xFFE53935));
+    // Otilayotgan pichoq
+    final bx = s * 0.5, by = s * 0.97;
+    c.drawLine(Offset(bx, by - s * 0.18), Offset(bx, by - s * 0.07), Paint()..color = const Color(0xFFE0E0E0)..strokeWidth = s * 0.035);
+    c.drawLine(Offset(bx, by - s * 0.07), Offset(bx, by), Paint()..color = const Color(0xFF6D3B1F)..strokeWidth = s * 0.045..strokeCap = StrokeCap.round);
   }
 
   @override

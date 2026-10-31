@@ -11,7 +11,7 @@ import '../games/snakes/snakes_screen.dart';
 import '../games/stack/stack_online_screen.dart';
 import '../games/stack/stack_race_screen.dart';
 import '../games/stack/stack_screen.dart';
-import '../games/walls/walls_screen.dart';
+import '../games/knife/knife_screen.dart';
 import '../games/xo/xo_screen.dart';
 import '../net/server_client.dart';
 import 'online_room_screen.dart';
@@ -166,9 +166,9 @@ final _games = <_GameInfo>[
     if (s.online) return StackOnlineScreen.create(context);
     await _push(context, s.race ? StackRaceScreen(bots: s.bots, level: s.level) : const StackScreen());
   }),
-  _GameInfo('Escape the Walls', 'Devor buzish', GameArt.walls,
-      const [Color(0xFFD35400), Color(0xFF4A1A06)],
-      (context) => _push(context, const WallsScreen())),
+  _GameInfo('Pichoq otish', 'Bir bosish — nishonga', GameArt.knife,
+      const [Color(0xFF7B2FF7), Color(0xFF2A1B4D)],
+      (context) => _push(context, const KnifeScreen())),
 ];
 
 /// Bosh ekran: o'yinlar galereyasi.

@@ -9,7 +9,7 @@ import 'package:oyinim/games/snake/snake_screen.dart';
 import 'package:oyinim/games/snakes/snakes_screen.dart';
 import 'package:oyinim/games/stack/stack_race_screen.dart';
 import 'package:oyinim/games/stack/stack_screen.dart';
-import 'package:oyinim/games/walls/walls_screen.dart';
+import 'package:oyinim/games/knife/knife_screen.dart';
 import 'package:oyinim/games/xo/xo_screen.dart';
 import 'package:oyinim/screens/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,7 +28,7 @@ void main() {
     'chain8': const ChainScreen(players: 8, rows: 12, cols: 8),
     'orbs': const StackScreen(),
     'stackRace': const StackRaceScreen(bots: 3, seed: 1),
-    'walls': const WallsScreen(),
+    'knife': const KnifeScreen(seed: 1),
   };
 
   for (final size in const [Size(360, 640), Size(320, 568)]) {

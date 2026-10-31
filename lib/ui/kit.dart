@@ -21,7 +21,7 @@ class GamePalette {
   static const xo = GamePalette(Color(0xFF15204A), Color(0xFF070B1E), Color(0xFF5CE1E6));
   static const chain = GamePalette(Color(0xFF1A0B2E), Color(0xFF07020F), Color(0xFFFF4D8D));
   static const stack = GamePalette(Color(0xFF1E3A5F), Color(0xFF0A1424), Color(0xFF4FC3F7));
-  static const walls = GamePalette(Color(0xFF3A1F14), Color(0xFF120804), Color(0xFFFFB347));
+  static const knife = GamePalette(Color(0xFF2A1B4D), Color(0xFF0D0820), Color(0xFFFFC233));
 }
 
 /// Gradientli fon, ustida sekin suzuvchi nurlar.

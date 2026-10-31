@@ -2,7 +2,7 @@ import 'context.dart';
 import 'store.dart';
 
 /// Rekordlar jadvali bor o'yinlar.
-const kScoreGames = {'stack'};
+const kScoreGames = {'stack', 'knife'};
 
 /// Jadvalda saqlanadigan o'rinlar soni.
 const kScoreTop = 50;
