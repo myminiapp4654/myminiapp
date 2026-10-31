@@ -25,6 +25,7 @@ class Store {
 
   final File? _usersFile;
   final File? _scoresFile;
+  final File? _botUsersFile;
   Timer? _saveTimer;
   Timer? _gcTimer;
 
@@ -33,9 +34,11 @@ class Store {
 
   Store({String? dataDir, this.roomTtl = const Duration(hours: 6)})
       : _usersFile = dataDir == null ? null : File('$dataDir/users.json'),
-        _scoresFile = dataDir == null ? null : File('$dataDir/scores.json') {
+        _scoresFile = dataDir == null ? null : File('$dataDir/scores.json'),
+        _botUsersFile = dataDir == null ? null : File('$dataDir/botusers.json') {
     _loadUsers();
     _load(_scoresFile, 'scores');
+    _load(_botUsersFile, 'botusers');
     _gcTimer = Timer.periodic(const Duration(minutes: 10), (_) => _gc());
   }
 
@@ -86,19 +89,22 @@ class Store {
   List<String> pathsIn(String collection) =>
       _docs.keys.where((k) => k.startsWith('$collection/')).toList();
 
+  /// Faylga saqlanadigan (va o'chirilmaydigan) kolleksiyalar.
+  static bool _persisted(String path) =>
+      path.startsWith('users/') || path.startsWith('scores/') || path.startsWith('botusers/');
+
   void _changed(String path) {
     final data = _docs[path];
     for (final l in _listeners) {
       l(path, data);
     }
-    if (path.startsWith('users/') || path.startsWith('scores/')) _scheduleSave();
+    if (_persisted(path)) _scheduleSave();
   }
 
   void _gc() {
     final cutoff = DateTime.now().subtract(roomTtl);
     final old = _touched.entries
-        .where((e) =>
-            !e.key.startsWith('users/') && !e.key.startsWith('scores/') && e.value.isBefore(cutoff))
+        .where((e) => !_persisted(e.key) && e.value.isBefore(cutoff))
         .map((e) => e.key)
         .toList();
     for (final p in old) {
@@ -160,6 +166,7 @@ class Store {
 
   void saveNow() {
     _save(_scoresFile, 'scores');
+    _save(_botUsersFile, 'botusers');
     final f = _usersFile;
     if (f == null) return;
     final users = <String, dynamic>{};

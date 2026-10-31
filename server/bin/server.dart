@@ -55,7 +55,13 @@ Future<void> main() async {
 
   // /start ga javob beradigan bot (ochiq manzil ma'lum bo'lsa)
   final bot = botToken.isNotEmpty && publicUrl.startsWith('https://')
-      ? TelegramBot(token: botToken, publicUrl: publicUrl, botUsername: botUsername)
+      ? TelegramBot(
+          token: botToken,
+          publicUrl: publicUrl,
+          botUsername: botUsername,
+          db: store,
+          adminIds: adminIds,
+        )
       : null;
 
   final wsHandler = webSocketHandler((ws, _) => hub.handle(ws),

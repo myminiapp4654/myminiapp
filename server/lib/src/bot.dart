@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:shelf/shelf.dart';
 
+import 'store.dart';
 import 'uno/uno_bot.dart';
 
 /// Telegram bot: shaxsiy xabarda /start ga javob beradi va Mini App tugmasini
@@ -21,7 +22,19 @@ class TelegramBot {
   /// Guruhlardagi UNO (bot nomi ma'lum bo'lsa).
   late final UnoBot? uno;
 
-  TelegramBot({required this.token, required this.publicUrl, String? botUsername}) {
+  /// Botga kirganlar shu yerda saqlanadi (`botusers/<id>`).
+  final Store? db;
+
+  /// Adminlarning Telegram ID lari — ular /users ni ko'radi.
+  final Set<String> adminIds;
+
+  TelegramBot({
+    required this.token,
+    required this.publicUrl,
+    String? botUsername,
+    this.db,
+    this.adminIds = const {},
+  }) {
     uno = botUsername == null ? null : UnoBot(api: _call, botUsername: botUsername);
   }
 
@@ -81,6 +94,17 @@ class TelegramBot {
         {'command': 'stop_uno', 'description': 'O\'yinni to\'xtatish'},
       ],
     });
+    // Adminlarning o'z menyusida — /users ham
+    for (final id in adminIds) {
+      await _call('setMyCommands', {
+        'scope': {'type': 'chat', 'chat_id': int.tryParse(id) ?? id},
+        'commands': [
+          {'command': 'start', 'description': "O'yinni boshlash"},
+          {'command': 'users', 'description': 'Botga kim kirgan (admin)'},
+          {'command': 'id', 'description': 'Telegram ID'},
+        ],
+      });
+    }
     stdout.writeln('Telegram bot sozlandi: $publicUrl');
   }
 
@@ -116,6 +140,19 @@ class TelegramBot {
     final chatId = chat['id'];
     final text = (msg['text'] as String? ?? '').trim();
     final name = (msg['from'] as Map?)?['first_name'] as String? ?? '';
+    final from = msg['from'] as Map<String, dynamic>?;
+    if (from != null) recordUser(from, start: text.startsWith('/start'));
+
+    // Admin: botga kim kirganini ko'rish
+    if (text.startsWith('/users') && adminIds.contains('${from?['id']}')) {
+      await _call('sendMessage', {
+        'chat_id': chatId,
+        'text': usersReport(),
+        'parse_mode': 'HTML',
+        'disable_web_page_preview': true,
+      });
+      return;
+    }
 
     if (text.startsWith('/help')) {
       await _send(
@@ -174,6 +211,49 @@ class TelegramBot {
           ],
         },
       });
+
+  /// Botga yozgan (Start bosgan) foydalanuvchini eslab qoladi.
+  void recordUser(Map<String, dynamic> from, {bool start = false}) {
+    final store = db;
+    final id = from['id'];
+    if (store == null || id == null) return;
+    final path = 'botusers/$id';
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final u = store.get(path) ?? {'id': id, 'first': now, 'starts': 0};
+    u['name'] = [from['first_name'], from['last_name']].whereType<String>().join(' ').trim();
+    u['username'] = from['username'];
+    u['last'] = now;
+    if (start) u['starts'] = (u['starts'] as int? ?? 0) + 1;
+    store.set(path, u);
+  }
+
+  /// Admin uchun hisobot: jami soni va oxirgi kirganlar.
+  String usersReport({int limit = 40}) {
+    final store = db;
+    if (store == null) return "Ma'lumot yo'q";
+    final users = [
+      for (final p in store.pathsIn('botusers')) store.get(p)!,
+    ]..sort((a, b) => (b['last'] as int).compareTo(a['last'] as int));
+    final day = DateTime.now().subtract(const Duration(days: 1)).millisecondsSinceEpoch;
+    final today = users.where((u) => (u['last'] as int) > day).length;
+    final appUsers = store.pathsIn('users').length;
+    String date(int ms) {
+      final d = DateTime.fromMillisecondsSinceEpoch(ms).toUtc().add(const Duration(hours: 5)); // Toshkent
+      String two(int n) => n.toString().padLeft(2, '0');
+      return '${two(d.day)}.${two(d.month)} ${two(d.hour)}:${two(d.minute)}';
+    }
+
+    final lines = [
+      for (final u in users.take(limit))
+        '• ${_escape(u['name'] as String? ?? '?')}'
+            '${u['username'] != null ? ' @${u['username']}' : ''}'
+            ' — <code>${u['id']}</code>, ${date(u['last'] as int)}',
+    ];
+    return '👥 <b>Botga kirganlar: ${users.length}</b>\n'
+        "Oxirgi 24 soatda: $today  •  O'yinni ochganlar: $appUsers\n\n"
+        '${lines.isEmpty ? 'Hali hech kim yo\'q' : lines.join('\n')}'
+        '${users.length > limit ? '\n\n…va yana ${users.length - limit} kishi' : ''}';
+  }
 
   static String _escape(String s) =>
       s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
